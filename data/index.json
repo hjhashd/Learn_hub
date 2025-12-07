@@ -1,0 +1,87 @@
+{
+  "knowledge": [
+    {
+      "title": "TypeScript 学习心得",
+      "category": "study",
+      "tags": [
+        "TypeScript",
+        "JavaScript",
+        "类型系统"
+      ],
+      "createdAt": "2025-12-07T10:51:14.482Z",
+      "updatedAt": "2025-12-07T10:51:14.482Z",
+      "filePath": "2025/12/undefined-typescript-学习心得.md"
+    },
+    {
+      "title": "欢迎使用 LearnHub",
+      "category": "tech",
+      "tags": [
+        "入门",
+        "教程"
+      ],
+      "createdAt": "2025-12-07T10:51:14.482Z",
+      "updatedAt": "2025-12-07T10:51:14.482Z",
+      "filePath": "2025/12/undefined-欢迎使用-learnhub.md"
+    },
+    {
+      "title": "Next.js 开发笔记",
+      "category": "tech",
+      "tags": [
+        "Next.js",
+        "React",
+        "Web开发"
+      ],
+      "createdAt": "2025-12-07T10:51:14.475Z",
+      "updatedAt": "2025-12-07T10:51:14.481Z",
+      "filePath": "2025/12/undefined-next.js-开发笔记.md"
+    }
+  ],
+  "categories": [
+    {
+      "id": "tech",
+      "name": "tech",
+      "icon": "Code",
+      "color": "#3B82F6",
+      "count": 2
+    },
+    {
+      "id": "life",
+      "name": "life",
+      "icon": "Heart",
+      "color": "#EF4444",
+      "count": 0
+    },
+    {
+      "id": "work",
+      "name": "work",
+      "icon": "Briefcase",
+      "color": "#10B981",
+      "count": 0
+    },
+    {
+      "id": "study",
+      "name": "study",
+      "icon": "BookOpen",
+      "color": "#F59E0B",
+      "count": 1
+    },
+    {
+      "id": "thinking",
+      "name": "thinking",
+      "icon": "Lightbulb",
+      "color": "#8B5CF6",
+      "count": 0
+    }
+  ],
+  "tags": {
+    "TypeScript": 1,
+    "JavaScript": 1,
+    "类型系统": 1,
+    "入门": 1,
+    "教程": 1,
+    "Next.js": 1,
+    "React": 1,
+    "Web开发": 1
+  },
+  "lastUpdated": "2025-12-07T10:51:14.482Z"
+}
