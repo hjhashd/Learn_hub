@@ -1,8 +1,12 @@
+// File: components/Sidebar.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Sparkles, Plus, Search, LayoutGrid, ChevronRight, Menu, Moon, Sun, Github } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Sparkles, Plus, Search, LayoutGrid, ChevronRight, Menu, Moon, Sun, Github, Settings, LogOut, HelpCircle, User, Trash2 } from 'lucide-react';
 import { Post, Category } from '../types/knowledge';
+import { useRouter } from 'next/navigation';
+import { deleteKnowledge } from '@/lib/api-client';
+import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 
 interface CategoryItemProps {
   icon: React.ElementType;
@@ -46,7 +50,8 @@ interface SidebarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   isMobile: boolean;
-  getCategoryIcon: (icon: string) => React.ElementType;
+  getCategoryIcon: (iconName: string) => React.ElementType;
+  onPostsUpdate?: () => void;
 }
 
 export default function Sidebar({
@@ -63,14 +68,56 @@ export default function Sidebar({
   searchQuery,
   onSearchChange,
   isMobile,
-  getCategoryIcon
+  getCategoryIcon,
+  onPostsUpdate,
 }: SidebarProps) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<Post | null>(null);
+  const router = useRouter();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const handleDeleteClick = (post: Post, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPostToDelete(post);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!postToDelete) return;
+    
+    try {
+      await deleteKnowledge(postToDelete.id);
+      onPostsUpdate?.();
+    } catch (error) {
+      console.error('删除文档失败:', error);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setPostToDelete(null);
+  };
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const filteredPosts = posts.filter(post => {
     const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    const matchesCategory = activeCategory === 'all' || post.categoryId === activeCategory;
+    const matchesCategory = activeCategory === 'all' || post.category === activeCategory;
     
     return matchesSearch && matchesCategory;
   });
@@ -97,7 +144,13 @@ export default function Sidebar({
         <div className="w-[300px] h-full flex flex-col shrink-0">
           
           {/* 1. 顶部 Logo 区 */}
-          <div className="h-16 flex items-center px-6 shrink-0 justify-between">
+          <div className="h-16 flex items-center px-4 shrink-0 gap-3">
+            <button 
+               onClick={onToggle}
+               className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-[#2d2e30] text-gray-500 transition-colors"
+            >
+               <Menu size={20} />
+            </button>
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-600 text-white">
                 <Sparkles size={18} strokeWidth={2.5} />
@@ -106,13 +159,11 @@ export default function Sidebar({
             </div>
           </div>
 
+        
           {/* 2. Google 风格的大号操作按钮 (Extended FAB style) */}
           <div className="px-4 mb-4">
              <button 
-                onClick={async () => {
-                  /* 创建逻辑示例 */
-                  alert("Create logic here");
-                }}
+                onClick={() => router.push('/edit')}
                 className="flex items-center gap-3 w-full bg-[#C2E7FF] dark:bg-[#004A77] hover:bg-[#b3d7ef] dark:hover:bg-[#005c94] text-[#001D35] dark:text-[#C2E7FF] px-4 py-3.5 rounded-2xl transition-colors duration-200 shadow-sm"
              >
                 <Plus size={20} />
@@ -177,16 +228,28 @@ export default function Sidebar({
                       key={post.id}
                       onClick={() => onPostClick(post)}
                       className={`
-                        group px-4 py-3 rounded-full cursor-pointer transition-colors duration-200 flex flex-col gap-1
+                        group px-4 py-3 rounded-full cursor-pointer transition-colors duration-200 flex flex-col gap-1 relative
                         ${activePost && activePost.id === post.id 
                           ? 'bg-[#d3e3fd] dark:bg-[#004a77] text-[#041e49] dark:text-[#c2e7ff]' 
                           : 'hover:bg-gray-200/50 dark:hover:bg-[#2d2e30] text-gray-700 dark:text-gray-300'}
                       `}
                     >
                       <div className="flex items-center justify-between w-full">
-                         <span className={`text-sm font-medium truncate w-full ${activePost && activePost.id === post.id ? 'font-semibold' : ''}`}>
+                         <span className={`text-sm font-medium truncate flex-1 ${activePost && activePost.id === post.id ? 'font-semibold' : ''}`}>
                             {post.title}
                          </span>
+                         <button
+                           onClick={(e) => handleDeleteClick(post, e)}
+                           className={`
+                             opacity-0 group-hover:opacity-100 transition-opacity duration-200 ml-2
+                             p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30
+                             text-gray-400 hover:text-red-600 dark:hover:text-red-400
+                             ${activePost && activePost.id === post.id ? 'opacity-100' : ''}
+                           `}
+                           title="删除文档"
+                         >
+                           <Trash2 size={14} />
+                         </button>
                       </div>
                       <div className="flex items-center gap-2 text-[10px] opacity-70">
                          <span>{post.date}</span>
@@ -203,17 +266,51 @@ export default function Sidebar({
           </div>
 
           {/* User Footer (Material Card style) */}
-          <div className="p-4 mt-auto">
-             <div className="flex items-center gap-3 p-2 rounded-full hover:bg-white/60 dark:hover:bg-[#2d2e30] transition-colors cursor-pointer">
-                <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
-                   M
+          <div className="p-4 mt-auto relative" ref={userMenuRef}>
+             {/* Popup Menu */}
+             {showUserMenu && (
+               <div className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-[#2d2e30] rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 py-2 z-50 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                 <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">My Workspace</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">user@example.com</p>
+                 </div>
+                 
+                 <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors">
+                   <Settings size={16} /> 
+                   <span>Settings</span>
+                 </button>
+                 <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors">
+                   <HelpCircle size={16} /> 
+                   <span>Help & Feedback</span>
+                 </button>
+                 <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
+                 <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors">
+                   <LogOut size={16} /> 
+                   <span>Sign out</span>
+                 </button>
+               </div>
+             )}
+
+             <div 
+               onClick={() => setShowUserMenu(!showUserMenu)}
+               className={`flex items-center gap-3 p-2 rounded-full transition-colors cursor-pointer ${showUserMenu ? 'bg-white dark:bg-[#2d2e30] shadow-sm' : 'hover:bg-white/60 dark:hover:bg-[#2d2e30]'}`}
+             >
+                {/* Avatar with Local Image */}
+                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex-shrink-0 border border-gray-200 dark:border-gray-600">
+                   <img 
+                     src="/images/116590818.jpg" 
+                     alt="User Avatar" 
+                     className="w-full h-full object-cover"
+                   />
                 </div>
+                
                 <div className="flex-1 min-w-0">
                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">My Workspace</p>
                 </div>
+                
                 <button 
                   onClick={(e) => { e.stopPropagation(); onDarkModeToggle(); }}
-                  className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500"
+                  className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 transition-colors"
                 >
                   {darkMode ? <Sun size={16} /> : <Moon size={16} />}
                 </button>
@@ -221,6 +318,14 @@ export default function Sidebar({
           </div>
         </div>
       </aside>
+      
+      {/* 删除确认对话框 */}
+      <DeleteConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title={postToDelete?.title || ''}
+      />
     </>
   );
 }

@@ -4,7 +4,15 @@ import matter from 'gray-matter';
 import { KnowledgeItem, Category } from '@/types/knowledge';
 
 const DATA_DIR = process.env.DATA_PATH || path.join(process.cwd(), 'data');
-const KNOWLEDGE_DIR = path.join(DATA_DIR, 'knowledge');
+export const SUB_DIRS = {
+  KNOWLEDGE: 'knowledge',
+  DOCS: 'docs',
+  IMAGES: 'images'
+};
+
+const KNOWLEDGE_DIR = path.join(DATA_DIR, SUB_DIRS.KNOWLEDGE);
+const DOCS_DIR = path.join(DATA_DIR, SUB_DIRS.DOCS);
+const IMAGES_DIR = path.join(DATA_DIR, SUB_DIRS.IMAGES);
 const ATTACHMENTS_DIR = path.join(DATA_DIR, 'attachments');
 const INDEX_FILE = path.join(DATA_DIR, 'index.json');
 
@@ -13,7 +21,7 @@ const INDEX_FILE = path.join(DATA_DIR, 'index.json');
  */
 export function initializeDataDirectory(): void {
   // 创建必要的目录
-  [DATA_DIR, KNOWLEDGE_DIR, ATTACHMENTS_DIR].forEach(dir => {
+  [DATA_DIR, KNOWLEDGE_DIR, DOCS_DIR, IMAGES_DIR, ATTACHMENTS_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -86,7 +94,7 @@ function markdownToKnowledge(content: string, filename?: string): KnowledgeItem 
   cleanedContent = cleanedContent.replace(/^#\s+.*\n\s*/, '');
   
   return {
-    id: data.id || (filename ? path.basename(filename, '.md') : Date.now().toString()),
+    id: String(data.id || (filename ? path.basename(filename, '.md') : Date.now().toString())),
     title: data.title || (filename ? path.basename(filename, '.md') : 'Untitled'),
     content: cleanedContent,
     category: data.category || 'uncategorized',
@@ -100,7 +108,7 @@ function markdownToKnowledge(content: string, filename?: string): KnowledgeItem 
  * 更新索引文件
  */
 function updateIndex(): void {
-  const knowledgeItems = getAllKnowledgeFromFiles();
+  const { items: knowledgeItems } = getAllKnowledgeFromFiles(1, 100000); // Get all for index
   const categories: Record<string, number> = {};
   const tags: Record<string, number> = {};
 
@@ -122,7 +130,7 @@ function updateIndex(): void {
       tags: item.tags,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
-      filePath: generateKnowledgeFilename(item)
+      filePath: item.filePath || generateKnowledgeFilename(item)
     })),
     categories,
     tags,
@@ -135,7 +143,7 @@ function updateIndex(): void {
 /**
  * 获取所有知识条目（从文件）
  */
-export function getAllKnowledgeFromFiles(): KnowledgeItem[] {
+export function getAllKnowledgeFromFiles(page: number = 1, limit: number = 1000): { items: KnowledgeItem[], total: number } {
   initializeDataDirectory();
   
   const items: KnowledgeItem[] = [];
@@ -155,6 +163,7 @@ export function getAllKnowledgeFromFiles(): KnowledgeItem[] {
         try {
           const content = fs.readFileSync(filePath, 'utf-8');
           const item = markdownToKnowledge(content, file);
+          item.filePath = filePath;
           items.push(item);
         } catch (error) {
           console.error(`Error reading file ${filePath}:`, error);
@@ -164,17 +173,51 @@ export function getAllKnowledgeFromFiles(): KnowledgeItem[] {
   }
   
   scanDirectory(KNOWLEDGE_DIR);
-  return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  scanDirectory(DOCS_DIR);
+  scanDirectory(IMAGES_DIR);
+  
+  // Sort by date desc
+  const sortedItems = items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+  const paginatedItems = sortedItems.slice(startIndex, endIndex);
+  
+  return {
+    items: paginatedItems,
+    total: sortedItems.length
+  };
 }
 
 /**
  * 保存知识条目到文件
  */
-export function saveKnowledgeToFile(item: KnowledgeItem): void {
+export function saveKnowledgeToFile(item: KnowledgeItem, directory: string = 'knowledge'): void {
   initializeDataDirectory();
   
-  const filename = generateKnowledgeFilename(item);
-  const filePath = path.join(KNOWLEDGE_DIR, filename);
+  // Ensure ID exists
+  const knowledgeItem: KnowledgeItem = {
+    ...item,
+    id: item.id || Date.now().toString()
+  };
+  
+  const filename = generateKnowledgeFilename(knowledgeItem);
+  let targetDir;
+  
+  switch (directory) {
+    case 'docs':
+      targetDir = DOCS_DIR;
+      break;
+    case 'images':
+      targetDir = IMAGES_DIR;
+      break;
+    case 'knowledge':
+    default:
+      targetDir = KNOWLEDGE_DIR;
+      break;
+  }
+  
+  const filePath = path.join(targetDir, filename);
   
   // 确保目录存在
   const dir = path.dirname(filePath);
@@ -182,7 +225,7 @@ export function saveKnowledgeToFile(item: KnowledgeItem): void {
     fs.mkdirSync(dir, { recursive: true });
   }
   
-  const markdownContent = knowledgeToMarkdown(item);
+  const markdownContent = knowledgeToMarkdown(knowledgeItem);
   fs.writeFileSync(filePath, markdownContent, 'utf-8');
   
   // 更新索引
@@ -193,7 +236,7 @@ export function saveKnowledgeToFile(item: KnowledgeItem): void {
  * 根据ID获取知识条目
  */
 export function getKnowledgeByIdFromFiles(id: string): KnowledgeItem | null {
-  const items = getAllKnowledgeFromFiles();
+  const { items } = getAllKnowledgeFromFiles(1, 100000);
   return items.find(item => item.id === id) || null;
 }
 
@@ -201,17 +244,64 @@ export function getKnowledgeByIdFromFiles(id: string): KnowledgeItem | null {
  * 删除知识条目
  */
 export function deleteKnowledgeFile(id: string): void {
-  const items = getAllKnowledgeFromFiles();
+  const { items } = getAllKnowledgeFromFiles(1, 100000);
   const item = items.find(i => i.id === id);
   
   if (item) {
     const filename = generateKnowledgeFilename(item);
-    const filePath = path.join(KNOWLEDGE_DIR, filename);
     
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      updateIndex();
+    // Check all directories
+    [KNOWLEDGE_DIR, DOCS_DIR, IMAGES_DIR].forEach(dir => {
+      const filePath = path.join(dir, filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    });
+    
+    updateIndex();
+  }
+}
+
+/**
+ * 删除知识条目（返回结果格式）
+ */
+export async function deleteKnowledgeFromFiles(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { items } = getAllKnowledgeFromFiles(1, 100000);
+    // 使用 String() 确保 ID 类型一致
+    const item = items.find(i => String(i.id) === String(id));
+    
+    if (!item) {
+      return { success: false, error: 'Knowledge item not found' };
     }
+    
+    let deleted = false;
+
+    if (item.filePath && fs.existsSync(item.filePath)) {
+      fs.unlinkSync(item.filePath);
+      deleted = true;
+    } else {
+      const filename = generateKnowledgeFilename(item);
+      
+      // Check all directories
+      [KNOWLEDGE_DIR, DOCS_DIR, IMAGES_DIR].forEach(dir => {
+        const filePath = path.join(dir, filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          deleted = true;
+        }
+      });
+    }
+    
+    if (deleted) {
+      updateIndex();
+      return { success: true };
+    } else {
+      return { success: false, error: 'File not found' };
+    }
+  } catch (error) {
+    console.error('Failed to delete knowledge:', error);
+    return { success: false, error: 'Failed to delete knowledge item' };
   }
 }
 
@@ -219,7 +309,7 @@ export function deleteKnowledgeFile(id: string): void {
  * 获取分类统计
  */
 export function getCategoriesFromFiles(): Category[] {
-  const items = getAllKnowledgeFromFiles();
+  const { items } = getAllKnowledgeFromFiles(1, 100000);
   const categoryMap = new Map<string, number>();
   
   items.forEach(item => {
@@ -250,7 +340,7 @@ export function getCategoriesFromFiles(): Category[] {
  * 搜索知识条目
  */
 export function searchKnowledge(query: string): KnowledgeItem[] {
-  const items = getAllKnowledgeFromFiles();
+  const { items } = getAllKnowledgeFromFiles(1, 100000);
   const lowerQuery = query.toLowerCase();
   
   return items.filter(item => {

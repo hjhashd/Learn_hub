@@ -1,18 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Heart, Sparkles, Coffee, Sprout, Smile } from 'lucide-react';
+import { Heart, Sparkles, Coffee, Sprout, Smile, Upload, Download, ArrowLeft, Save, FileText, Image as ImageIcon, Book, Layout } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Select } from '@/components/ui/select'
 import { KnowledgeItem } from '@/types/knowledge'
-import { getKnowledgeById, saveKnowledge } from '@/lib/storage'
-import { generateId } from '@/lib/utils'
+import { createKnowledge, getKnowledgeById } from '@/lib/api-client'
+import { generateId, cn } from '@/lib/utils'
 
 export default function EditPage() {
   const searchParams = useSearchParams()
@@ -22,20 +23,23 @@ export default function EditPage() {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [category, setCategory] = useState('')
+  const [directory, setDirectory] = useState('knowledge')
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
-  const [showPreview, setShowPreview] = useState(false)
+  const [activeTab, setActiveTab] = useState<'write' | 'preview'>('write')
   const [saving, setSaving] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (id) {
-      const existing = getKnowledgeById(id)
-      if (existing) {
-        setTitle(existing.title)
-        setContent(existing.content)
-        setCategory(existing.category)
-        setTags(existing.tags)
-      }
+      // Load existing knowledge
+      getKnowledgeById(id).then(item => {
+        setTitle(item.title)
+        setContent(item.content)
+        setCategory(item.category)
+        setTags(item.tags)
+        // Note: directory is not stored in item, so we default to 'knowledge' or need to infer it
+      }).catch(err => console.error(err))
     }
   }, [id])
 
@@ -47,22 +51,30 @@ export default function EditPage() {
 
     setSaving(true)
     
-    const knowledgeItem: KnowledgeItem = {
-      id: id || generateId(),
-      title: title.trim(),
-      content: content.trim(),
-      category: category.trim() || '未分类',
-      tags: tags,
-      createdAt: id ? getKnowledgeById(id)!.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
+    try {
+      const knowledgeItem = {
+        title: title.trim(),
+        content: content.trim(),
+        category: category.trim() || '未分类',
+        tags: tags,
+        directory: directory,
+        updatedAt: new Date().toISOString(),
+        // If ID exists, we preserve it (handled by backend if passed, but createKnowledge excludes ID in type)
+        // We'll pass it anyway by casting or modifying backend to accept ID for updates
+        ...(id ? { id, createdAt: new Date().toISOString() } : { createdAt: new Date().toISOString() })
+      }
 
-    saveKnowledge(knowledgeItem)
-    
-    setTimeout(() => {
-      setSaving(false)
+      // We use createKnowledge which calls POST. POST uses saveKnowledgeToFile which uses ID if present or generates new one.
+      // We need to ensure ID is passed if editing.
+      await createKnowledge(knowledgeItem as any)
+      
       router.push('/')
-    }, 500)
+    } catch (error) {
+      console.error('Failed to save:', error)
+      alert('保存失败')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const addTag = () => {
@@ -84,41 +96,98 @@ export default function EditPage() {
     }
   }
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (text) {
+        setContent(text);
+        if (!title) {
+          setTitle(file.name.replace(/\.[^/.]+$/, ""));
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDownload = () => {
+    if (!content) {
+      alert('没有内容可下载');
+      return;
+    }
+    
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title || 'untitled'}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-[#0f172a] text-slate-800 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 dark:from-slate-950 dark:to-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-300">
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        accept=".md,.txt"
+        className="hidden"
+      />
+      
       {/* Header */}
-      <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 sticky top-0 z-10 transition-colors duration-300">
+      <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-indigo-100 dark:border-slate-800 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
+            <div className="flex items-center gap-4">
               <Button 
                 variant="ghost" 
                 size="sm" 
                 onClick={() => router.push('/')}
-                className="mr-4"
+                className="hover:bg-indigo-100 dark:hover:bg-slate-800"
               >
+                <ArrowLeft className="h-4 w-4 mr-2" />
                 返回
               </Button>
-              <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
-                {id ? '编辑知识' : '新建知识'}
+              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400">
+                {id ? '编辑笔记' : '新建笔记'}
               </h1>
             </div>
-            <div className="flex items-center space-x-4">
+            
+            <div className="flex items-center space-x-2">
               <Button
                 variant="outline"
-                onClick={() => setShowPreview(!showPreview)}
-                className="flex items-center"
+                onClick={() => fileInputRef.current?.click()}
+                className="hidden sm:flex"
               >
-                {showPreview ? <Coffee className="h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                {showPreview ? '隐藏预览' : '显示预览'}
+                <Upload className="h-4 w-4 mr-2" />
+                导入
               </Button>
+              <Button
+                variant="outline"
+                onClick={handleDownload}
+                className="hidden sm:flex"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                导出
+              </Button>
+              <div className="h-6 w-px bg-gray-200 dark:bg-slate-700 mx-2 hidden sm:block"></div>
               <Button 
                 onClick={handleSave} 
                 disabled={saving}
-                className="flex items-center"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20 transition-all hover:scale-105"
               >
-                <Heart className="h-4 w-4 mr-2" />
-                {saving ? '保存中...' : '保存'}
+                {saving ? (
+                  <Sparkles className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                {saving ? '保存中...' : '保存笔记'}
               </Button>
             </div>
           </div>
@@ -126,66 +195,80 @@ export default function EditPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className={showPreview ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : ""}>
-          {/* Editor */}
-          <div className="space-y-6">
-            <Card>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Left Sidebar: Metadata */}
+          <div className="lg:col-span-4 space-y-6">
+            <Card className="border-indigo-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
               <CardHeader>
-                <CardTitle>基本信息</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Book className="h-5 w-5 text-indigo-500" />
+                  基本信息
+                </CardTitle>
+                <CardDescription>设置笔记的标题和分类</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    标题 *
-                  </label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">标题</label>
                   <Input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="输入知识标题"
-                    className="w-full"
+                    placeholder="输入笔记标题..."
+                    className="focus:ring-indigo-500"
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    分类
-                  </label>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">存储位置</label>
+                  <Select 
+                    value={directory} 
+                    onChange={(e) => setDirectory(e.target.value)}
+                    className="w-full"
+                  >
+                    <option value="knowledge">知识md文件 (Knowledge)</option>
+                    <option value="docs">文档 (Docs)</option>
+                    <option value="images">图片 (Images)</option>
+                  </Select>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    文件将保存在: data/{directory}/
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">分类</label>
                   <Input
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    placeholder="输入分类名称"
-                    className="w-full"
+                    placeholder="例如: tech, life..."
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    标签
-                  </label>
-                  <div className="flex gap-2 mb-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">标签</label>
+                  <div className="flex gap-2">
                     <Input
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      placeholder="输入标签后按回车"
+                      placeholder="输入标签按回车"
                       className="flex-1"
                     />
-                    <Button onClick={addTag} type="button">
+                    <Button onClick={addTag} size="icon" variant="outline">
                       <Sprout className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 mt-2">
                     {tags.map((tag) => (
                       <span
-                      key={tag}
-                      className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400"
-                    >
+                        key={tag}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
+                      >
                         {tag}
                         <button
                           onClick={() => removeTag(tag)}
-                          className="ml-2 text-primary-600 hover:text-primary-800"
+                          className="ml-1.5 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
                         >
-                          <Smile className="h-3 w-3" />
+                          &times;
                         </button>
                       </span>
                     ))}
@@ -194,109 +277,86 @@ export default function EditPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>内容编辑</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="使用 Markdown 格式编写内容...\n\n支持：\n# 标题\n**粗体**\n*斜体*\n`代码`\n- 列表\n> 引用\n```代码块```"
-                  className="w-full h-96 font-mono text-sm"
-                />
+            <Card className="border-indigo-100 dark:border-slate-800 shadow-sm bg-indigo-50/50 dark:bg-slate-900/50">
+              <CardContent className="p-4">
+                <h3 className="text-sm font-medium text-indigo-900 dark:text-indigo-100 mb-2 flex items-center">
+                  <Smile className="h-4 w-4 mr-2" />
+                  小贴士
+                </h3>
+                <p className="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                  支持 Markdown 语法。你可以直接拖拽文件到编辑器中（即将支持），或者点击上方的导入按钮。
+                  选择正确的存储目录有助于文件管理。
+                </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Preview */}
-          {showPreview && (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>预览</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose-custom">
+          {/* Right Content: Editor/Preview */}
+          <div className="lg:col-span-8">
+            <Card className="h-full border-indigo-100 dark:border-slate-800 shadow-md flex flex-col min-h-[600px]">
+              <div className="border-b px-4 py-2 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 rounded-t-lg">
+                <div className="flex space-x-1 bg-slate-200 dark:bg-slate-800 p-1 rounded-md">
+                  <button
+                    onClick={() => setActiveTab('write')}
+                    className={cn(
+                      "px-4 py-1.5 text-sm font-medium rounded-sm transition-all",
+                      activeTab === 'write' 
+                        ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm" 
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                    )}
+                  >
+                    <FileText className="h-4 w-4 inline mr-1.5" />
+                    编写
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('preview')}
+                    className={cn(
+                      "px-4 py-1.5 text-sm font-medium rounded-sm transition-all",
+                      activeTab === 'preview' 
+                        ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm" 
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                    )}
+                  >
+                    <Coffee className="h-4 w-4 inline mr-1.5" />
+                    预览
+                  </button>
+                </div>
+              </div>
+              
+              <CardContent className="flex-1 p-0 overflow-hidden relative">
+                {activeTab === 'write' ? (
+                  <Textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="# 开始你的创作...&#10;&#10;支持 Markdown 格式"
+                    className="w-full h-full min-h-[500px] border-0 focus-visible:ring-0 rounded-none p-6 font-mono text-base resize-none bg-transparent"
+                  />
+                ) : (
+                  <div className="h-full min-h-[500px] p-8 overflow-auto prose prose-indigo dark:prose-invert max-w-none bg-white dark:bg-slate-950">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeHighlight]}
                       components={{
-                        h1: ({ children }) => (
-                        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-8 mb-4 first:mt-0">
-                            {children}
-                          </h1>
-                        ),
-                        h2: ({ children }) => (
-                        <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200 mt-6 mb-3">
-                            {children}
-                          </h2>
-                        ),
-                        h3: ({ children }) => (
-                        <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mt-4 mb-2">
-                            {children}
-                          </h3>
-                        ),
-                        p: ({ children }) => (
-                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
-                            {children}
-                          </p>
-                        ),
-                        ul: ({ children }) => (
-                        <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-1">
-                            {children}
-                          </ul>
-                        ),
-                        ol: ({ children }) => (
-                        <ol className="list-decimal list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-1">
-                            {children}
-                          </ol>
-                        ),
-                        li: ({ children }) => (
-                        <li className="text-slate-600 dark:text-slate-300">
-                            {children}
-                          </li>
-                        ),
-                        blockquote: ({ children }) => (
-                        <blockquote className="border-l-4 border-indigo-500 pl-4 my-4 italic text-slate-500 dark:text-slate-400 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-r-lg">
-                            {children}
-                          </blockquote>
-                        ),
                         code: ({ inline, children, ...props }) => (
                           inline ? (
-                            <code className="bg-gray-100 dark:bg-slate-800 px-1 py-0.5 rounded text-sm font-mono text-pink-600 dark:text-pink-400" {...props}>
+                            <code className="bg-indigo-50 dark:bg-slate-800 px-1.5 py-0.5 rounded text-sm font-mono text-indigo-600 dark:text-indigo-400" {...props}>
                               {children}
                             </code>
                           ) : (
-                            <code {...props}>
-                              {children}
-                            </code>
+                            <pre className="bg-slate-900 dark:bg-slate-900 text-slate-50 p-4 rounded-lg overflow-x-auto my-4 shadow-inner">
+                              <code {...props} className="bg-transparent p-0 text-sm font-mono">{children}</code>
+                            </pre>
                           )
-                        ),
-                        pre: ({ children }) => (
-                          <pre className="bg-slate-900 dark:bg-slate-800 text-gray-100 dark:text-slate-100 p-4 rounded-lg overflow-x-auto my-4">
-                            {children}
-                          </pre>
-                        ),
-                        a: ({ children, href }) => (
-                          <a
-                            href={href}
-                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {children}
-                          </a>
-                        ),
+                        )
                       }}
                     >
                       {content || '*暂无内容*'}
                     </ReactMarkdown>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

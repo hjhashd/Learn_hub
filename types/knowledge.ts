@@ -9,6 +9,7 @@ export interface KnowledgeItem {
   tags: string[]
   createdAt: string
   updatedAt: string
+  filePath?: string
 }
 
 /**
