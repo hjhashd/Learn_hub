@@ -3,14 +3,14 @@
 
 import { useState, useEffect } from 'react'
 import { notFound } from 'next/navigation'
-import { Heart, Sparkles, Coffee, Sprout, FolderHeart } from 'lucide-react';
+import { Heart, Sparkles, Coffee, Sprout, FolderHeart, Calendar } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { KnowledgeItem } from '@/types/knowledge'
-import { getKnowledgeById } from '@/lib/storage'
+import { getKnowledgeById } from '@/lib/api-client'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -23,12 +23,21 @@ export default function KnowledgeDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const item = getKnowledgeById(params.id)
-    if (!item) {
-      notFound()
+    const load = async () => {
+      try {
+        const item = await getKnowledgeById(params.id)
+        if (!item) {
+          notFound()
+          return
+        }
+        setKnowledge(item)
+      } catch (e) {
+        notFound()
+      } finally {
+        setLoading(false)
+      }
     }
-    setKnowledge(item)
-    setLoading(false)
+    load()
   }, [params.id])
 
   if (loading) {

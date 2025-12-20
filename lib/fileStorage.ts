@@ -1,18 +1,20 @@
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
-import { KnowledgeItem, Category } from '@/types/knowledge';
+import { KnowledgeItem, Category, PromptItem } from '@/types/knowledge';
 
 const DATA_DIR = process.env.DATA_PATH || path.join(process.cwd(), 'data');
 export const SUB_DIRS = {
   KNOWLEDGE: 'knowledge',
   DOCS: 'docs',
-  IMAGES: 'images'
+  IMAGES: 'images',
+  PROMPTS: 'prompts'
 };
 
 const KNOWLEDGE_DIR = path.join(DATA_DIR, SUB_DIRS.KNOWLEDGE);
 const DOCS_DIR = path.join(DATA_DIR, SUB_DIRS.DOCS);
 const IMAGES_DIR = path.join(DATA_DIR, SUB_DIRS.IMAGES);
+const PROMPTS_DIR = path.join(DATA_DIR, SUB_DIRS.PROMPTS);
 const ATTACHMENTS_DIR = path.join(DATA_DIR, 'attachments');
 const INDEX_FILE = path.join(DATA_DIR, 'index.json');
 
@@ -21,7 +23,7 @@ const INDEX_FILE = path.join(DATA_DIR, 'index.json');
  */
 export function initializeDataDirectory(): void {
   // 创建必要的目录
-  [DATA_DIR, KNOWLEDGE_DIR, DOCS_DIR, IMAGES_DIR, ATTACHMENTS_DIR].forEach(dir => {
+  [DATA_DIR, KNOWLEDGE_DIR, DOCS_DIR, IMAGES_DIR, PROMPTS_DIR, ATTACHMENTS_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -39,6 +41,7 @@ export function initializeDataDirectory(): void {
   if (!fs.existsSync(INDEX_FILE)) {
     const initialIndex = {
       knowledge: [],
+      prompts: [],
       categories: {},
       tags: {},
       lastUpdated: new Date().toISOString()
@@ -51,6 +54,17 @@ export function initializeDataDirectory(): void {
  * 生成知识条目文件名
  */
 function generateKnowledgeFilename(item: KnowledgeItem): string {
+  const date = new Date(item.createdAt);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const safeTitle = item.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '-');
+  return `${year}/${month}/${item.id}-${safeTitle}.md`;
+}
+
+/**
+ * 生成提示词文件名
+ */
+function generatePromptFilename(item: PromptItem): string {
   const date = new Date(item.createdAt);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -83,6 +97,27 @@ ${item.content}`;
 }
 
 /**
+ * 提示词转 Markdown
+ */
+function promptToMarkdown(item: PromptItem): string {
+  const frontmatter = {
+    id: item.id,
+    title: item.title,
+    category: item.category,
+    tags: item.tags,
+    favorite: !!item.favorite,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt
+  };
+
+  const frontmatterStr = Object.entries(frontmatter)
+    .map(([key, value]) => `${key}: ${Array.isArray(value) ? JSON.stringify(value) : value}`)
+    .join('\n');
+
+  return `---\n${frontmatterStr}\n---\n\n${item.content}`;
+}
+
+/**
  * 从Markdown解析知识条目
  */
 function markdownToKnowledge(content: string, filename?: string): KnowledgeItem {
@@ -105,10 +140,30 @@ function markdownToKnowledge(content: string, filename?: string): KnowledgeItem 
 }
 
 /**
+ * 从 Markdown 解析提示词
+ */
+function markdownToPrompt(content: string, filename?: string): PromptItem {
+  const { data, content: markdownContent } = matter(content);
+  const cleanedContent = markdownContent.trim();
+  return {
+    id: String(data.id || (filename ? path.basename(filename, '.md') : Date.now().toString())),
+    title: data.title || (filename ? path.basename(filename, '.md') : 'Untitled Prompt'),
+    content: cleanedContent,
+    category: data.category || 'general',
+    tags: data.tags || [],
+    favorite: !!data.favorite,
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt || new Date().toISOString(),
+    filePath: undefined
+  };
+}
+
+/**
  * 更新索引文件
  */
 function updateIndex(): void {
   const { items: knowledgeItems } = getAllKnowledgeFromFiles(1, 100000); // Get all for index
+  const { items: promptItems } = getAllPromptsFromFiles(1, 100000);
   const categories: Record<string, number> = {};
   const tags: Record<string, number> = {};
 
@@ -131,6 +186,16 @@ function updateIndex(): void {
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
       filePath: item.filePath || generateKnowledgeFilename(item)
+    })),
+    prompts: promptItems.map(item => ({
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      tags: item.tags,
+      favorite: !!item.favorite,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      filePath: item.filePath || generatePromptFilename(item)
     })),
     categories,
     tags,
@@ -190,6 +255,45 @@ export function getAllKnowledgeFromFiles(page: number = 1, limit: number = 1000)
 }
 
 /**
+ * 获取所有提示词（从文件）
+ */
+export function getAllPromptsFromFiles(page: number = 1, limit: number = 1000): { items: PromptItem[], total: number } {
+  initializeDataDirectory();
+
+  const items: PromptItem[] = [];
+
+  function scanDirectory(dir: string): void {
+    if (!fs.existsSync(dir)) return;
+    const files = fs.readdirSync(dir);
+    files.forEach(file => {
+      const filePath = path.join(dir, file);
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
+        scanDirectory(filePath);
+      } else if (file.endsWith('.md')) {
+        try {
+          const content = fs.readFileSync(filePath, 'utf-8');
+          const item = markdownToPrompt(content, file);
+          (item as any).filePath = filePath;
+          items.push(item);
+        } catch (error) {
+          console.error(`Error reading prompt file ${filePath}:`, error);
+        }
+      }
+    });
+  }
+
+  scanDirectory(PROMPTS_DIR);
+
+  const sortedItems = items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+  const paginatedItems = sortedItems.slice(startIndex, endIndex);
+
+  return { items: paginatedItems, total: sortedItems.length };
+}
+
+/**
  * 保存知识条目到文件
  */
 export function saveKnowledgeToFile(item: KnowledgeItem, directory: string = 'knowledge'): void {
@@ -233,11 +337,47 @@ export function saveKnowledgeToFile(item: KnowledgeItem, directory: string = 'kn
 }
 
 /**
+ * 保存提示词到文件（创建或更新）
+ */
+export function savePromptToFile(item: PromptItem): PromptItem {
+  initializeDataDirectory();
+
+  const promptItem: PromptItem = {
+    ...item,
+    id: item.id || Date.now().toString(),
+    createdAt: item.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  const filename = generatePromptFilename(promptItem);
+  const filePath = path.join(PROMPTS_DIR, filename);
+
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  const markdownContent = promptToMarkdown(promptItem);
+  fs.writeFileSync(filePath, markdownContent, 'utf-8');
+
+  updateIndex();
+  return promptItem;
+}
+
+/**
  * 根据ID获取知识条目
  */
 export function getKnowledgeByIdFromFiles(id: string): KnowledgeItem | null {
   const { items } = getAllKnowledgeFromFiles(1, 100000);
   return items.find(item => item.id === id) || null;
+}
+
+/**
+ * 根据ID获取提示词
+ */
+export function getPromptByIdFromFiles(id: string): PromptItem | null {
+  const { items } = getAllPromptsFromFiles(1, 100000);
+  return items.find(item => String(item.id) === String(id)) || null;
 }
 
 /**
@@ -259,6 +399,35 @@ export function deleteKnowledgeFile(id: string): void {
     });
     
     updateIndex();
+  }
+}
+
+/**
+ * 删除提示词（返回结果格式）
+ */
+export async function deletePromptFromFiles(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { items } = getAllPromptsFromFiles(1, 100000);
+    const item = items.find(i => String(i.id) === String(id));
+    if (!item) return { success: false, error: 'Prompt not found' };
+
+    const filename = generatePromptFilename(item);
+    let deleted = false;
+    const filePath = path.join(PROMPTS_DIR, filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      deleted = true;
+    }
+
+    if (deleted) {
+      updateIndex();
+      return { success: true };
+    } else {
+      return { success: false, error: 'File not found' };
+    }
+  } catch (error) {
+    console.error('Failed to delete prompt:', error);
+    return { success: false, error: 'Failed to delete prompt' };
   }
 }
 
@@ -319,11 +488,11 @@ export function getCategoriesFromFiles(): Category[] {
   
   // 预定义的分类配置
   const predefinedCategories = [
-    { id: 'tech', name: 'tech', icon: 'Code', color: '#3B82F6' },
-    { id: 'life', name: 'life', icon: 'Heart', color: '#EF4444' },
-    { id: 'work', name: 'work', icon: 'Briefcase', color: '#10B981' },
-    { id: 'study', name: 'study', icon: 'BookOpen', color: '#F59E0B' },
-    { id: 'thinking', name: 'thinking', icon: 'Lightbulb', color: '#8B5CF6' }
+    { id: 'tech', name: '技术', icon: 'Code', color: '#3B82F6' },
+    { id: 'life', name: '生活', icon: 'Heart', color: '#EF4444' },
+    { id: 'work', name: '工作', icon: 'Briefcase', color: '#10B981' },
+    { id: 'study', name: '学习', icon: 'BookOpen', color: '#F59E0B' },
+    { id: 'thinking', name: '思考', icon: 'Lightbulb', color: '#8B5CF6' }
   ];
   
   // 返回包含图标和颜色的完整分类信息
@@ -343,6 +512,22 @@ export function searchKnowledge(query: string): KnowledgeItem[] {
   const { items } = getAllKnowledgeFromFiles(1, 100000);
   const lowerQuery = query.toLowerCase();
   
+  return items.filter(item => {
+    return (
+      item.title.toLowerCase().includes(lowerQuery) ||
+      item.content.toLowerCase().includes(lowerQuery) ||
+      item.tags.some(tag => tag.toLowerCase().includes(lowerQuery)) ||
+      item.category.toLowerCase().includes(lowerQuery)
+    );
+  });
+}
+
+/**
+ * 搜索提示词
+ */
+export function searchPrompts(query: string): PromptItem[] {
+  const { items } = getAllPromptsFromFiles(1, 100000);
+  const lowerQuery = query.toLowerCase();
   return items.filter(item => {
     return (
       item.title.toLowerCase().includes(lowerQuery) ||

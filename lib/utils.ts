@@ -67,17 +67,27 @@ export class HeadingSlugger {
 
 export function generateHeadingToc(markdown: string): HeadingItem[] {
   if (!markdown) return []
-  const regex = /^(#{2,4})\s+(.+)$/gm
   const slugger = new HeadingSlugger()
   const items: HeadingItem[] = []
-  let match: RegExpExecArray | null
+  let inFence = false
+  const lines = markdown.split(/\r?\n/)
 
-  while ((match = regex.exec(markdown)) !== null) {
-    const level = match[1].length
-    const rawText = match[2].replace(/[`*]/g, '').trim()
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd()
+    if (/^(```|~~~)/.test(line.trim())) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+
+    const m = line.match(/^(#{1,6})\s+(.+?)\s*(?:#+\s*)?$/)
+    if (!m) continue
+    const level = m[1].length
+    const rawText = m[2].replace(/[`*]/g, '').trim()
     if (!rawText) continue
+
     const id = slugger.slug(rawText)
-    items.push({ id, text: rawText, level })
+    if (level >= 2 && level <= 4) items.push({ id, text: rawText, level })
   }
 
   return items

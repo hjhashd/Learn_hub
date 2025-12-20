@@ -1,6 +1,6 @@
 ---
 title: "TypeScript 学习心得"
-category: "study"
+category: "学习"
 tags: ["TypeScript", "JavaScript", "类型系统"]
 date: "2024-12-07"
 readingTime: "4分钟"
@@ -29,7 +29,7 @@ TypeScript 为 JavaScript 添加了静态类型检查，带来了以下好处：
 - **更好的 IDE 支持**：智能提示、自动补全、重构支持
 - **代码可维护性**：类型定义让代码更易理解和维护
 - **团队协作**：明确的接口定义减少沟通成本
-
+[[Next.js 开发笔记]]
 ## 基础类型
 
 ### 基本类型

@@ -1,6 +1,6 @@
 ---
 title: "Next.js 开发笔记"
-category: "tech"
+category: "技术"
 tags: ["Next.js", "React", "Web开发"]
 date: "2024-12-07"
 readingTime: "5分钟"

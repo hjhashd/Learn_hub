@@ -8,11 +8,15 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Check, Copy, Terminal } from 'lucide-react';
 import { HeadingSlugger } from '@/lib/utils';
+import Link from 'next/link';
 
 interface MarkdownViewerProps {
   content: string;
   className?: string;
   darkMode?: boolean; // 新增：接收深色模式状态
+  articles?: { id: string; title: string }[]; // 用于根据标题匹配路由 ID
+  wikiLinkResolver?: (text: string) => string | null; // 自定义解析器
+  onInternalLinkClick?: (id: string) => void;
 }
 
 const getNodeText = (node: React.ReactNode): string => {
@@ -23,9 +27,91 @@ const getNodeText = (node: React.ReactNode): string => {
   return '';
 };
 
-export function MarkdownViewer({ content, className, darkMode = false }: MarkdownViewerProps) {
+export const MarkdownViewer = React.memo(function MarkdownViewer({ content, className, darkMode = false, articles, wikiLinkResolver, onInternalLinkClick }: MarkdownViewerProps) {
   const sluggerRef = useRef(new HeadingSlugger());
   sluggerRef.current.reset();
+
+  const remarkWikiLinks = () => {
+    const normalize = (s: string) => s.trim().toLowerCase();
+    const extractDocName = (s: string) => {
+      const parts = s.split(/[:：]/);
+      return (parts.length > 1 ? parts[parts.length - 1] : s).trim();
+    };
+    const resolveHref = (raw: string): { href: string; label: string } => {
+      const [text, alias] = raw.split('|');
+      const label = (alias || text).trim();
+      const docName = extractDocName(text.trim());
+      let href: string | null = null;
+
+      if (typeof wikiLinkResolver === 'function') {
+        try {
+          href = wikiLinkResolver(docName);
+        } catch {}
+      }
+
+      if (!href && Array.isArray(articles) && articles.length > 0) {
+        const target = articles.find(a => normalize(a.title) === normalize(docName));
+        if (target) href = `/knowledge/${encodeURIComponent(String(target.id))}`;
+      }
+
+      if (!href) {
+        href = `/?q=${encodeURIComponent(docName)}`;
+      }
+
+      return { href, label };
+    };
+
+    return (tree: any) => {
+      const visitChildren = (node: any) => {
+        if (!node || !node.children || !Array.isArray(node.children)) return;
+        const nextChildren: any[] = [];
+        for (const child of node.children) {
+          if (child.type === 'code' || child.type === 'inlineCode') {
+            nextChildren.push(child);
+            continue;
+          }
+
+          if (child.type === 'text' && typeof child.value === 'string') {
+            const text = child.value as string;
+            const parts: any[] = [];
+            let lastIndex = 0;
+            const regex = /\[\[([^\]]+)\]\]/g;
+            let m: RegExpExecArray | null;
+            while ((m = regex.exec(text)) !== null) {
+              const start = m.index;
+              const end = regex.lastIndex;
+              if (start > lastIndex) {
+                parts.push({ type: 'text', value: text.slice(lastIndex, start) });
+              }
+              const { href, label } = resolveHref(m[1]);
+              parts.push({
+                type: 'link',
+                url: href,
+                title: label,
+                children: [{ type: 'text', value: label }]
+              });
+              lastIndex = end;
+            }
+            if (lastIndex === 0) {
+              nextChildren.push(child);
+            } else {
+              if (lastIndex < text.length) {
+                parts.push({ type: 'text', value: text.slice(lastIndex) });
+              }
+              nextChildren.push(...parts);
+            }
+          } else {
+            visitChildren(child);
+            nextChildren.push(child);
+          }
+        }
+        node.children = nextChildren;
+      };
+
+      visitChildren(tree);
+      return tree;
+    };
+  };
 
   // --- 动态代码块组件 ---
   const CodeBlock = ({ inline, className, children, ...props }: any) => {
@@ -133,7 +219,7 @@ export function MarkdownViewer({ content, className, darkMode = false }: Markdow
   return (
     <div className={`markdown-content ${className || ''}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkWikiLinks]}
         components={{
           code: CodeBlock,
           
@@ -150,15 +236,49 @@ export function MarkdownViewer({ content, className, darkMode = false }: Markdow
             const id = sluggerRef.current.slug(getNodeText(children) || 'section');
             return <h3 id={id} className="text-xl font-semibold text-gray-800 dark:text-gray-200 mt-6 mb-3 transition-colors">{children}</h3>;
           },
+          h4: ({ children }) => {
+            const id = sluggerRef.current.slug(getNodeText(children) || 'section');
+            return <h4 id={id} className="text-lg font-semibold text-gray-800 dark:text-gray-200 mt-5 mb-2 transition-colors">{children}</h4>;
+          },
+          h5: ({ children }) => {
+            const id = sluggerRef.current.slug(getNodeText(children) || 'section');
+            return <h5 id={id} className="text-base font-semibold text-gray-800 dark:text-gray-200 mt-4 mb-2 transition-colors">{children}</h5>;
+          },
+          h6: ({ children }) => {
+            const id = sluggerRef.current.slug(getNodeText(children) || 'section');
+            return <h6 id={id} className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-4 mb-2 transition-colors">{children}</h6>;
+          },
           p: ({ children }) => <p className="mb-5 leading-7 text-gray-600 dark:text-gray-300 text-[16px] transition-colors">{children}</p>,
           ul: ({ children }) => <ul className="list-disc list-outside ml-6 mb-6 space-y-2 text-gray-600 dark:text-gray-300 transition-colors">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal list-outside ml-6 mb-6 space-y-2 text-gray-600 dark:text-gray-300 transition-colors">{children}</ol>,
           li: ({ children }) => <li className="leading-7">{children}</li>,
-          a: ({ children, href }) => (
-            <a href={href} className="text-blue-600 dark:text-blue-400 hover:underline decoration-2 underline-offset-2 transition-all font-medium" target="_blank" rel="noopener noreferrer">
-              {children}
-            </a>
-          ),
+          a: ({ children, href }) => {
+            const isInternal = href && href.startsWith('/knowledge/');
+            if (isInternal && onInternalLinkClick) {
+              const id = decodeURIComponent(String(href).replace('/knowledge/', ''));
+              return (
+                <a
+                  href={href}
+                  onClick={(e) => { e.preventDefault(); onInternalLinkClick(id); }}
+                  className="text-blue-600 dark:text-blue-400 hover:underline decoration-2 underline-offset-2 transition-all font-medium"
+                >
+                  {children}
+                </a>
+              );
+            }
+            if (href && href.startsWith('/')) {
+              return (
+                <Link href={href} className="text-blue-600 dark:text-blue-400 hover:underline decoration-2 underline-offset-2 transition-all font-medium">
+                  {children}
+                </Link>
+              );
+            }
+            return (
+              <a href={href} className="text-blue-600 dark:text-blue-400 hover:underline decoration-2 underline-offset-2 transition-all font-medium" target="_blank" rel="noopener noreferrer">
+                {children}
+              </a>
+            );
+          },
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-blue-500/30 bg-blue-50/30 dark:bg-blue-900/10 dark:border-blue-500/50 pl-4 py-3 pr-4 my-6 rounded-r-lg italic text-gray-600 dark:text-gray-400 transition-colors">
               {children}
@@ -187,4 +307,4 @@ export function MarkdownViewer({ content, className, darkMode = false }: Markdow
       </ReactMarkdown>
     </div>
   );
-}
+});

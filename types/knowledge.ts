@@ -39,3 +39,15 @@ export interface SearchFilter {
   category?: string
   tags?: string[]
 }
+
+export interface PromptItem {
+  id: string
+  title: string
+  content: string
+  category: string
+  tags: string[]
+  favorite?: boolean
+  createdAt: string
+  updatedAt: string
+  filePath?: string
+}

@@ -47,7 +47,7 @@ export function DeleteConfirmDialog({
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-700 dark:text-gray-200">
-              您确定要删除 "<span className="font-semibold">{title}</span>" 吗？
+              您确定要删除 &quot;<span className="font-semibold">{title}</span>&quot; 吗？
             </p>
           </CardContent>
           <CardFooter className="flex justify-end gap-3">

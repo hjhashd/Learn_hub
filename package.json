@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build-optimized.js",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:analyze": "ANALYZE=true next build"
   },
   "dependencies": {
     "@types/node": "^20",
@@ -29,6 +30,7 @@
     "typescript": "^5"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.0.10",
     "@types/react-syntax-highlighter": "^15.5.13",
     "eslint": "^8",
     "eslint-config-next": "14.2.0"

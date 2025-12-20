@@ -1,7 +1,7 @@
 // File: components/TableOfContents.tsx
 "use client";
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { List, PanelRightClose } from 'lucide-react';
 import { HeadingItem } from '@/lib/utils';
 
@@ -22,6 +22,32 @@ export default function TableOfContents({
   onHeadingClick,
   darkMode = false
 }: TableOfContentsProps) {
+  const navRef = useRef<HTMLElement>(null);
+
+  // Auto-scroll active item into view
+  useEffect(() => {
+    if (!activeHeadingId || !navRef.current) return;
+
+    const activeElement = navRef.current.querySelector(`[data-id="${activeHeadingId}"]`);
+    if (activeElement) {
+      const container = navRef.current;
+      const elementRect = activeElement.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      // Check if element is out of view
+      const isAbove = elementRect.top < containerRect.top;
+      const isBelow = elementRect.bottom > containerRect.bottom;
+
+      if (isAbove || isBelow) {
+        // Scroll to keep it in the middle if possible, or just into view
+        activeElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+    }
+  }, [activeHeadingId]);
+
   if (tocItems.length === 0) return null;
 
   return (
@@ -51,12 +77,16 @@ export default function TableOfContents({
         </div>
 
         {/* TOC List */}
-        <nav className="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2">
+        <nav 
+          ref={navRef}
+          className="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2 scroll-smooth"
+        >
           {tocItems.map(item => {
             const isActive = activeHeadingId === item.id;
             return (
               <button
                 key={item.id}
+                data-id={item.id}
                 onClick={() => onHeadingClick(item.id)}
                 className={`
                   group flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-sm transition-all duration-200

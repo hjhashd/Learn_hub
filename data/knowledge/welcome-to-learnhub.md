@@ -1,6 +1,6 @@
 ---
 title: "欢迎使用 LearnHub"
-category: "tech"
+category: "技术"
 tags: ["入门", "教程"]
 date: "2024-12-07"
 readingTime: "3分钟"

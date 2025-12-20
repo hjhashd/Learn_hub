@@ -1,8 +1,8 @@
 // File: components/Sidebar.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Sparkles, Plus, Search, LayoutGrid, ChevronRight, Menu, Moon, Sun, Github, Settings, LogOut, HelpCircle, User, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Sparkles, Plus, Search, LayoutGrid, ChevronRight, Menu, Moon, Sun, Github, Settings, LogOut, HelpCircle, User, Trash2, PanelLeftClose } from 'lucide-react';
 import { Post, Category } from '../types/knowledge';
 import { useRouter } from 'next/navigation';
 import { deleteKnowledge } from '@/lib/api-client';
@@ -21,10 +21,10 @@ function CategoryItem({ icon: Icon, label, count, isActive, onClick }: CategoryI
     <div 
       onClick={onClick}
       className={`
-        flex items-center gap-3 px-4 py-2.5 rounded-full cursor-pointer transition-all duration-200
+        flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-200
         ${isActive 
-          ? 'bg-[#d3e3fd] dark:bg-[#004a77] text-[#041e49] dark:text-[#c2e7ff] shadow-sm' 
-          : 'hover:bg-white/60 dark:hover:bg-[#2d2e30] text-gray-700 dark:text-gray-300'}
+          ? 'bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-900/40 dark:to-indigo-900/20 text-blue-700 dark:text-blue-100 shadow-sm border border-blue-200/60 dark:border-blue-700/50' 
+          : 'hover:bg-gray-100/60 dark:hover:bg-[#2d2e30] text-gray-600 dark:text-gray-400 border border-transparent'}
       `}
     >
       <Icon size={18} strokeWidth={2} />
@@ -89,7 +89,7 @@ export default function Sidebar({
       await deleteKnowledge(postToDelete.id);
       onPostsUpdate?.();
     } catch (error) {
-      console.error('删除文档失败:', error);
+      console.error('删除笔记失败:', error);
     }
   };
 
@@ -112,15 +112,10 @@ export default function Sidebar({
     };
   }, []);
 
-  const filteredPosts = posts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesCategory = activeCategory === 'all' || post.category === activeCategory;
-    
-    return matchesSearch && matchesCategory;
-  });
+  const filteredPosts = useMemo(() => {
+    const matchesCategory = (post: Post) => activeCategory === 'all' || post.category === activeCategory;
+    return posts.filter(matchesCategory);
+  }, [posts, activeCategory]);
 
   return (
     <>
@@ -144,19 +139,20 @@ export default function Sidebar({
         <div className="w-[300px] h-full flex flex-col shrink-0">
           
           {/* 1. 顶部 Logo 区 */}
-          <div className="h-16 flex items-center px-4 shrink-0 gap-3">
-            <button 
-               onClick={onToggle}
-               className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-[#2d2e30] text-gray-500 transition-colors"
-            >
-               <Menu size={20} />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-600 text-white">
+          <div className="h-16 flex items-center justify-between px-6 shrink-0">
+            <div className="flex items-center gap-3 select-none">
+              <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20 transform hover:scale-105 transition-transform duration-300">
                 <Sparkles size={18} strokeWidth={2.5} />
               </div>
-              <span className="font-medium text-xl text-[#1f1f1f] dark:text-[#e3e3e3] tracking-tight">Mind Garden</span>
+              <span className="font-bold text-xl text-[#1f1f1f] dark:text-[#e3e3e3] tracking-tight font-serif">思维花园</span>
             </div>
+            {/* Mobile Close Button */}
+            <button 
+              onClick={onToggle}
+              className="lg:hidden p-2 rounded-full hover:bg-gray-200 dark:hover:bg-[#2d2e30] text-gray-500 transition-colors"
+            >
+              <PanelLeftClose size={20} />
+            </button>
           </div>
 
         
@@ -167,7 +163,7 @@ export default function Sidebar({
                 className="flex items-center gap-3 w-full bg-[#C2E7FF] dark:bg-[#004A77] hover:bg-[#b3d7ef] dark:hover:bg-[#005c94] text-[#001D35] dark:text-[#C2E7FF] px-4 py-3.5 rounded-2xl transition-colors duration-200 shadow-sm"
              >
                 <Plus size={20} />
-                <span className="font-medium text-sm">New Note</span>
+                <span className="font-medium text-sm">新建笔记</span>
              </button>
           </div>
 
@@ -177,7 +173,7 @@ export default function Sidebar({
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Search" 
+                placeholder="搜索" 
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="w-full bg-white dark:bg-[#2d2e30] border-none rounded-full pl-11 pr-4 py-3 text-sm transition-all outline-none placeholder:text-gray-500 text-gray-800 dark:text-gray-200 shadow-sm focus:shadow-md"
@@ -193,7 +189,7 @@ export default function Sidebar({
               <div className="space-y-1">
                 <CategoryItem 
                   icon={LayoutGrid} 
-                  label="All Notes" 
+                  label="全部笔记" 
                   count={posts.length} 
                   isActive={activeCategory === 'all'} 
                   onClick={() => onCategoryChange('all')} 
@@ -228,10 +224,10 @@ export default function Sidebar({
                       key={post.id}
                       onClick={() => onPostClick(post)}
                       className={`
-                        group px-4 py-3 rounded-full cursor-pointer transition-colors duration-200 flex flex-col gap-1 relative
+                        group px-4 py-2 rounded-xl cursor-pointer transition-colors duration-200 flex flex-col gap-0.5 relative
                         ${activePost && activePost.id === post.id 
-                          ? 'bg-[#d3e3fd] dark:bg-[#004a77] text-[#041e49] dark:text-[#c2e7ff]' 
-                          : 'hover:bg-gray-200/50 dark:hover:bg-[#2d2e30] text-gray-700 dark:text-gray-300'}
+                          ? 'bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-900/40 dark:to-indigo-900/20 text-blue-700 dark:text-blue-100 shadow-sm border border-blue-200/60 dark:border-blue-700/50' 
+                          : 'hover:bg-gray-100/60 dark:hover:bg-[#2d2e30] text-gray-600 dark:text-gray-400 border border-transparent'}
                       `}
                     >
                       <div className="flex items-center justify-between w-full">
@@ -246,7 +242,7 @@ export default function Sidebar({
                              text-gray-400 hover:text-red-600 dark:hover:text-red-400
                              ${activePost && activePost.id === post.id ? 'opacity-100' : ''}
                            `}
-                           title="删除文档"
+                           title="删除笔记"
                          >
                            <Trash2 size={14} />
                          </button>
@@ -258,7 +254,7 @@ export default function Sidebar({
                   ))
                 ) : (
                   <div className="px-4 py-8 text-center text-sm text-gray-400">
-                    No notes found
+                    未找到笔记
                   </div>
                 )}
               </div>
@@ -271,22 +267,22 @@ export default function Sidebar({
              {showUserMenu && (
                <div className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-[#2d2e30] rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 py-2 z-50 animate-in slide-in-from-bottom-2 fade-in duration-200">
                  <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">My Workspace</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">我的工作空间</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">user@example.com</p>
                  </div>
                  
                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors">
                    <Settings size={16} /> 
-                   <span>Settings</span>
+                   <span>设置</span>
                  </button>
                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors">
                    <HelpCircle size={16} /> 
-                   <span>Help & Feedback</span>
+                   <span>帮助与反馈</span>
                  </button>
                  <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
                  <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors">
                    <LogOut size={16} /> 
-                   <span>Sign out</span>
+                   <span>退出登录</span>
                  </button>
                </div>
              )}
@@ -296,7 +292,7 @@ export default function Sidebar({
                className={`flex items-center gap-3 p-2 rounded-full transition-colors cursor-pointer ${showUserMenu ? 'bg-white dark:bg-[#2d2e30] shadow-sm' : 'hover:bg-white/60 dark:hover:bg-[#2d2e30]'}`}
              >
                 {/* Avatar with Local Image */}
-                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex-shrink-0 border border-gray-200 dark:border-gray-600">
+                <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex-shrink-0 border-2 border-white dark:border-gray-600 shadow-md ring-1 ring-gray-100 dark:ring-gray-800">
                    <img 
                      src="/images/116590818.jpg" 
                      alt="User Avatar" 
@@ -305,7 +301,7 @@ export default function Sidebar({
                 </div>
                 
                 <div className="flex-1 min-w-0">
-                   <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">My Workspace</p>
+                   <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">我的工作空间</p>
                 </div>
                 
                 <button 
