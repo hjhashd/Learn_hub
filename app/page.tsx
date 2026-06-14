@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import MainContentWithToc from '@/components/MainContentWithToc';
+import { useSidebar } from '@/context/SidebarContext';
 import { 
   getAllKnowledge, 
   getCategories, 
@@ -42,11 +43,10 @@ function getCategoryIcon(iconName: string) {
 }
 
 function PersonalKnowledgeBase() {
+  const { isMobile, setIsDrawerOpen } = useSidebar();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activePost, setActivePost] = useState<Post | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isMobile, setIsMobile] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -55,6 +55,7 @@ function PersonalKnowledgeBase() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [initialPosts, setInitialPosts] = useState<Post[]>([]);
   const [lastActivePost, setLastActivePost] = useState<Post | null>(null);
+  const [mode, setMode] = useState<'doc' | 'universe'>('universe');
 
   const POSTS_CACHE_KEY = 'learnhub_cache_posts_v1';
   const CATS_CACHE_KEY = 'learnhub_cache_categories_v1';
@@ -64,6 +65,7 @@ function PersonalKnowledgeBase() {
     if (target) {
       setLastActivePost(activePost);
       setActivePost(target);
+      setMode('doc'); // Explicitly switch to doc mode when a link is clicked
     }
   };
 
@@ -74,7 +76,7 @@ function PersonalKnowledgeBase() {
       if (cachedPostsRaw) {
         const cachedPosts = JSON.parse(cachedPostsRaw);
         setPosts(cachedPosts);
-        if (cachedPosts.length > 0 && !activePost) setActivePost(cachedPosts[0]);
+        // Keep activePost null at start to stay on Chat mode purely
       }
       if (cachedCatsRaw) {
         const cachedCats = JSON.parse(cachedCatsRaw);
@@ -99,28 +101,13 @@ function PersonalKnowledgeBase() {
             localStorage.setItem(CATS_CACHE_KEY, JSON.stringify(cats));
           } catch {}
         }
-        if (knowledgeItems.length > 0 && !activePost) {
-          setActivePost(knowledgeItems[0]);
-        }
       } catch (err) {
-        console.error('Failed to load data:', err);
-        setError('加载数据失败，请检查文件系统权限');
+        setError('加载数据失败，请重试');
       } finally {
         setLoading(false);
       }
     };
     loadData();
-  }, []);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024);
-      if (window.innerWidth < 1024) setIsSidebarOpen(false);
-      else setIsSidebarOpen(true);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   useEffect(() => {
@@ -153,7 +140,8 @@ function PersonalKnowledgeBase() {
   const handlePostClick = (post: Post) => {
     startTransition(() => {
       setActivePost(post);
-      if (isMobile) setIsSidebarOpen(false);
+      setMode('doc');
+      if (isMobile) setIsDrawerOpen(false);
     });
   };
 
@@ -174,10 +162,8 @@ function PersonalKnowledgeBase() {
   };
 
   return (
-    <div className={`${darkMode ? 'dark' : ''} flex h-screen bg-white dark:bg-[#1E1F20] text-[#1f1f1f] dark:text-[#e3e3e3] font-sans overflow-hidden transition-colors duration-300`}>
+    <div className={`${darkMode ? 'dark' : ''} flex h-screen bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] font-sans overflow-hidden transition-theme`}>
       <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
         darkMode={darkMode}
         onDarkModeToggle={() => setDarkMode(!darkMode)}
         posts={posts}
@@ -188,27 +174,31 @@ function PersonalKnowledgeBase() {
         onPostClick={handlePostClick}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        isMobile={isMobile}
         getCategoryIcon={getCategoryIcon}
         onPostsUpdate={handlePostsUpdate}
+        mode={mode}
+        onModeChange={setMode}
       />
 
-      {/* --- 主内容区域 (Integrates Content, TOC, Mascot, PromptUniverse) --- */}
-      <MainContentWithToc
-        darkMode={darkMode}
-        isSidebarOpen={isSidebarOpen}
-        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-        activePost={activePost}
-        posts={posts}
-        onInternalLinkOpen={handleInternalLinkOpen}
-        lastActivePost={lastActivePost}
-        onReturnToLastPost={() => {
-          if (lastActivePost) {
-            setActivePost(lastActivePost);
-            setLastActivePost(null);
-          }
-        }}
-      />
+      {/* --- 主内容区域 (Integrates Content, TOC, PromptUniverse) --- */}
+      <main className="flex-1 relative overflow-hidden flex flex-col">
+        <MainContentWithToc
+          darkMode={darkMode}
+          activePost={activePost}
+          posts={posts}
+          onInternalLinkOpen={handleInternalLinkOpen}
+          lastActivePost={lastActivePost}
+          onReturnToLastPost={() => {
+            if (lastActivePost) {
+              setActivePost(lastActivePost);
+              setLastActivePost(null);
+              setMode('doc');
+            }
+          }}
+          mode={mode}
+          onModeChange={setMode}
+        />
+      </main>
     </div>
   );
 }

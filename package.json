@@ -4,10 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/build-optimized.js",
+    "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "build:analyze": "ANALYZE=true next build"
+    "lint": "next lint"
   },
   "dependencies": {
     "@types/node": "^20",

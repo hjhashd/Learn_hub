@@ -2,43 +2,100 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Sparkles, Plus, Search, LayoutGrid, ChevronRight, Menu, Moon, Sun, Github, Settings, LogOut, HelpCircle, User, Trash2, PanelLeftClose } from 'lucide-react';
+import Image from 'next/image';
+import { 
+  Sparkles, Plus, Search, LayoutGrid, ChevronRight, Menu, 
+  Moon, Sun, Settings, LogOut, HelpCircle, Trash2, 
+  PanelLeftClose, PanelLeftOpen, ChevronDown, Folder,
+  Files, FileText, MessageSquare
+} from 'lucide-react';
 import { Post, Category } from '../types/knowledge';
 import { useRouter } from 'next/navigation';
 import { deleteKnowledge } from '@/lib/api-client';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
+import { useSidebar } from '@/context/SidebarContext';
 
-interface CategoryItemProps {
+interface MenuItemProps {
   icon: React.ElementType;
   label: string;
-  count: number;
+  count?: number;
   isActive: boolean;
+  isCollapsed: boolean;
   onClick: () => void;
+  indent?: number;
+  hasChildren?: boolean;
+  isExpanded?: boolean;
+  onToggleExpand?: (e: React.MouseEvent) => void;
 }
 
-function CategoryItem({ icon: Icon, label, count, isActive, onClick }: CategoryItemProps) {
+function MenuItem({ 
+  icon: Icon, label, count, isActive, isCollapsed, onClick, 
+  indent = 0, hasChildren, isExpanded, onToggleExpand 
+}: MenuItemProps) {
   return (
     <div 
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-current={isActive ? 'page' : undefined}
+      aria-expanded={hasChildren ? isExpanded : undefined}
       className={`
-        flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-200
+        group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-indigo)]
         ${isActive 
-          ? 'bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-900/40 dark:to-indigo-900/20 text-blue-700 dark:text-blue-100 shadow-sm border border-blue-200/60 dark:border-blue-700/50' 
-          : 'hover:bg-gray-100/60 dark:hover:bg-[#2d2e30] text-gray-600 dark:text-gray-400 border border-transparent'}
+          ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-text-active)] font-medium shadow-sm ring-1 ring-black/5 dark:ring-white/5' 
+          : 'hover:bg-[var(--sidebar-hover)] text-[var(--sidebar-text)] hover:text-[var(--sidebar-text-active)]'}
+        ${isCollapsed ? 'justify-center px-0 w-10 h-10 mx-auto mb-1' : ''}
       `}
+      style={{ marginLeft: !isCollapsed ? `${indent * 16}px` : '0' }}
+      title={isCollapsed ? label : ''}
     >
-      <Icon size={18} strokeWidth={2} />
-      <span className="text-sm font-medium flex-1">{label}</span>
-      <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-white/50 dark:bg-black/20' : 'bg-gray-200/70 dark:bg-gray-700/50'}`}>
-        {count}
-      </span>
+      <div className={`flex items-center justify-center ${isCollapsed ? 'w-full h-full' : 'min-w-[20px]'}`}>
+        <Icon 
+          size={isCollapsed ? 20 : 18} 
+          className={`
+            ${isActive ? 'text-[var(--sidebar-icon-active)]' : 'text-[var(--sidebar-icon)] group-hover:text-[var(--sidebar-icon-active)]'} 
+            shrink-0 transition-transform duration-200 group-hover:scale-110
+          `} 
+        />
+      </div>
+      
+      {!isCollapsed && (
+        <>
+          <span className="text-sm flex-1 truncate">
+            {label}
+          </span>
+          {count !== undefined && count > 0 && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold tabular-nums ${isActive ? 'bg-[var(--primary-indigo)] text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+              {count}
+            </span>
+          )}
+          {hasChildren && (
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleExpand?.(e);
+              }}
+              className="p-0.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            >
+              <ChevronDown 
+                size={14} 
+                className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+              />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
 interface SidebarProps {
-  isOpen: boolean;
-  onToggle: () => void;
   darkMode: boolean;
   onDarkModeToggle: () => void;
   posts: Post[];
@@ -49,14 +106,13 @@ interface SidebarProps {
   onPostClick: (post: Post) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  isMobile: boolean;
   getCategoryIcon: (iconName: string) => React.ElementType;
   onPostsUpdate?: () => void;
+  mode: 'doc' | 'universe';
+  onModeChange: (mode: 'doc' | 'universe') => void;
 }
 
 export default function Sidebar({
-  isOpen,
-  onToggle,
   darkMode,
   onDarkModeToggle,
   posts,
@@ -67,14 +123,19 @@ export default function Sidebar({
   onPostClick,
   searchQuery,
   onSearchChange,
-  isMobile,
   getCategoryIcon,
   onPostsUpdate,
+  mode,
+  onModeChange,
 }: SidebarProps) {
+  const { isCollapsed, setIsCollapsed, isMobile, isDrawerOpen, setIsDrawerOpen, expandedFolders, toggleFolder } = useSidebar();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState<Post | null>(null);
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [showCategoryPopover, setShowCategoryPopover] = useState(false);
+  const categoryPopoverRef = useRef<HTMLDivElement>(null);
 
   const handleDeleteClick = (post: Post, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -84,20 +145,14 @@ export default function Sidebar({
 
   const handleDeleteConfirm = async () => {
     if (!postToDelete) return;
-    
     try {
       await deleteKnowledge(postToDelete.id);
       onPostsUpdate?.();
+      setDeleteDialogOpen(false);
     } catch (error) {
       console.error('删除笔记失败:', error);
     }
   };
-
-  const handleDeleteCancel = () => {
-    setDeleteDialogOpen(false);
-    setPostToDelete(null);
-  };
-  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -105,220 +160,296 @@ export default function Sidebar({
         setShowUserMenu(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const filteredPosts = useMemo(() => {
-    const matchesCategory = (post: Post) => activeCategory === 'all' || post.category === activeCategory;
-    return posts.filter(matchesCategory);
+    return posts.filter(post => activeCategory === 'all' || post.category === activeCategory);
   }, [posts, activeCategory]);
+
+  const sidebarWidth = isCollapsed ? 'w-[72px]' : 'w-[280px]';
+  const displayClass = isMobile 
+    ? (isDrawerOpen ? 'translate-x-0' : '-translate-x-full') 
+    : 'translate-x-0';
 
   return (
     <>
-      {/* 遮罩层 (Mobile) */}
-      {isMobile && isOpen && (
+      {/* Mobile Overlay */}
+      {isMobile && isDrawerOpen && (
         <div 
-          className="fixed inset-0 bg-black/30 z-20 backdrop-blur-sm transition-opacity"
-          onClick={onToggle}
+          className="fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-[4px] transition-opacity duration-300 animate-in fade-in"
+          onClick={() => setIsDrawerOpen(false)}
         />
       )}
 
-      {/* --- 左侧侧边栏 (Google Material Style) --- */}
       <aside 
         className={`
-          fixed lg:relative z-30 h-full flex flex-col transition-all duration-300 ease-[cubic-bezier(0.2,0.0,0,1.0)]
-          bg-[#F3F6FC] dark:bg-[#1E1F20] 
-          ${isOpen ? 'w-[300px] translate-x-0' : 'w-0 -translate-x-full lg:w-0 lg:-translate-x-0'}
-          overflow-hidden
+          fixed lg:relative z-50 h-full flex flex-col transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+          bg-[var(--sidebar-bg)] border-r border-black/5 dark:border-white/5
+          ${sidebarWidth} ${displayClass}
         `}
       >
-        <div className="w-[300px] h-full flex flex-col shrink-0">
-          
-          {/* 1. 顶部 Logo 区 */}
-          <div className="h-16 flex items-center justify-between px-6 shrink-0">
-            <div className="flex items-center gap-3 select-none">
-              <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20 transform hover:scale-105 transition-transform duration-300">
-                <Sparkles size={18} strokeWidth={2.5} />
+        {/* 1. Header */}
+        <div className={`h-16 flex items-center px-6 shrink-0 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+          {!isCollapsed && (
+            <div className="flex items-center gap-2.5 select-none overflow-hidden animate-in fade-in slide-in-from-left-4 duration-500">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--primary-indigo)] to-indigo-600 text-white shadow-indigo-200/50 dark:shadow-none shadow-lg">
+                <Sparkles size={16} fill="currentColor" />
               </div>
-              <span className="font-bold text-xl text-[#1f1f1f] dark:text-[#e3e3e3] tracking-tight font-serif">思维花园</span>
+              <span className="font-bold text-lg tracking-tight text-slate-900 dark:text-slate-100 truncate">LearnHub</span>
             </div>
-            {/* Mobile Close Button */}
-            <button 
-              onClick={onToggle}
-              className="lg:hidden p-2 rounded-full hover:bg-gray-200 dark:hover:bg-[#2d2e30] text-gray-500 transition-colors"
-            >
-              <PanelLeftClose size={20} />
-            </button>
-          </div>
+          )}
+          
+          <button 
+            onClick={() => isMobile ? setIsDrawerOpen(false) : setIsCollapsed(!isCollapsed)}
+            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            aria-label={isCollapsed ? "展开侧边栏" : "收起侧边栏"}
+          >
+            {isCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+        </div>
 
-        
-          {/* 2. Google 风格的大号操作按钮 (Extended FAB style) */}
-          <div className="px-4 mb-4">
-             <button 
-                onClick={() => router.push('/edit')}
-                className="flex items-center gap-3 w-full bg-[#C2E7FF] dark:bg-[#004A77] hover:bg-[#b3d7ef] dark:hover:bg-[#005c94] text-[#001D35] dark:text-[#C2E7FF] px-4 py-3.5 rounded-2xl transition-colors duration-200 shadow-sm"
-             >
-                <Plus size={20} />
-                <span className="font-medium text-sm">新建笔记</span>
-             </button>
-          </div>
+        {/* 2. FAB Button */}
+        <div className={`px-4 mb-6 ${isCollapsed ? 'flex justify-center' : ''}`}>
+          <button 
+            onClick={() => router.push('/edit')}
+            className={`
+              flex items-center gap-2 bg-[var(--primary-indigo)] text-white
+              hover:bg-indigo-600 hover:shadow-indigo-200 dark:hover:shadow-none hover:shadow-lg transition-all duration-200
+              ${isCollapsed ? 'w-10 h-10 rounded-lg justify-center' : 'w-full px-4 py-2.5 rounded-xl'}
+            `}
+            title={isCollapsed ? "新建笔记" : ""}
+            aria-label="新建笔记"
+          >
+            <Plus size={20} strokeWidth={2.5} />
+            {!isCollapsed && <span className="font-semibold text-sm">新建笔记</span>}
+          </button>
+        </div>
 
-          {/* 3. 搜索框 (Pill Shape) */}
-          <div className="px-4 mb-2">
+        {/* 3. Search (only in expanded mode) */}
+        {!isCollapsed && (
+          <div className="px-4 mb-6">
             <div className="relative group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400" size={18} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[var(--primary-indigo)] transition-colors" size={16} />
               <input 
                 type="text" 
-                placeholder="搜索" 
+                placeholder="快速搜索..." 
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="w-full bg-white dark:bg-[#2d2e30] border-none rounded-full pl-11 pr-4 py-3 text-sm transition-all outline-none placeholder:text-gray-500 text-gray-800 dark:text-gray-200 shadow-sm focus:shadow-md"
+                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary-indigo)]/20 focus:border-[var(--primary-indigo)] transition-all placeholder:text-slate-400"
               />
             </div>
           </div>
+        )}
 
-          {/* 4. 导航列表 (Material Lists) */}
-          <div className="flex-1 overflow-y-auto px-3 py-2 custom-scrollbar space-y-6">
-            
-            {/* 分类 Folder */}
-            <div>
-              <div className="space-y-1">
-                <CategoryItem 
-                  icon={LayoutGrid} 
-                  label="全部笔记" 
-                  count={posts.length} 
-                  isActive={activeCategory === 'all'} 
-                  onClick={() => onCategoryChange('all')} 
-                />
+        {/* 4. Menu List */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-3 flex flex-col gap-1">
+          <div className="space-y-1">
+            <MenuItem 
+              icon={MessageSquare} 
+              label="AI 对话" 
+              isActive={mode === 'universe'} 
+              isCollapsed={isCollapsed}
+              onClick={() => onModeChange('universe')}
+            />
+
+          {/* "知识库" - 支持右侧弹出分类菜单 */}
+          <div 
+            className="relative"
+            ref={categoryPopoverRef}
+            onMouseEnter={() => setShowCategoryPopover(true)}
+            onMouseLeave={() => setShowCategoryPopover(false)}
+          >
+            <MenuItem 
+              icon={LayoutGrid} 
+              label="知识库" 
+              isActive={mode === 'doc' && activeCategory === 'all'} 
+              isCollapsed={isCollapsed}
+              onClick={() => {
+                onModeChange('doc');
+                onCategoryChange('all');
+                if (!expandedFolders.includes('categories-root')) {
+                  toggleFolder('categories-root');
+                }
+              }}
+              hasChildren={true}
+              isExpanded={expandedFolders.includes('categories-root')}
+              onToggleExpand={() => {
+                toggleFolder('categories-root');
+              }}
+            />
+
+            {!isCollapsed && expandedFolders.includes('categories-root') && (
+              <div className="mt-1 space-y-1 ml-4 border-l border-slate-100 dark:border-slate-800 transition-all">
                 {categories.map(cat => {
                   const IconComponent = getCategoryIcon(cat.icon);
                   return (
-                    <CategoryItem 
-                      key={cat.id} 
+                    <MenuItem 
+                      key={cat.id}
                       icon={IconComponent} 
                       label={cat.name} 
                       count={cat.count} 
                       isActive={activeCategory === cat.id} 
-                      onClick={() => onCategoryChange(cat.id)} 
+                      isCollapsed={isCollapsed}
+                      onClick={() => onCategoryChange(cat.id)}
+                      indent={0.5}
                     />
                   );
                 })}
               </div>
-            </div>
+            )}
 
-            {/* 最近文件列表 */}
-            <div>
-              <div className="px-4 mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  {activeCategory === 'all' ? 'Recent' : 'In Folder'}
-                </h3>
+            {showCategoryPopover && isCollapsed && (
+              <div className="absolute left-full top-0 ml-2 w-[200px] rounded-xl border border-slate-200 dark:border-slate-800 bg-[var(--sidebar-bg)] shadow-xl z-50 animate-in fade-in slide-in-from-left-2 duration-200">
+                <div className="p-1.5 space-y-1">
+                  {categories.map(cat => {
+                    const IconComponent = getCategoryIcon(cat.icon);
+                    const active = activeCategory === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          onModeChange('doc');
+                          onCategoryChange(cat.id);
+                          setShowCategoryPopover(false);
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors ${active ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-text-active)] font-medium' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                      >
+                        <IconComponent size={16} className={active ? 'text-[var(--primary-indigo)]' : 'text-slate-400'} />
+                        <span className="flex-1 text-left truncate">{cat.name}</span>
+                        {cat.count > 0 && <span className="text-[10px] opacity-60 tabular-nums">{cat.count}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="space-y-1">
-                {filteredPosts.length > 0 ? (
-                  filteredPosts.map(post => (
-                    <div 
-                      key={post.id}
-                      onClick={() => onPostClick(post)}
-                      className={`
-                        group px-4 py-2 rounded-xl cursor-pointer transition-colors duration-200 flex flex-col gap-0.5 relative
-                        ${activePost && activePost.id === post.id 
-                          ? 'bg-gradient-to-r from-blue-50 to-indigo-50/50 dark:from-blue-900/40 dark:to-indigo-900/20 text-blue-700 dark:text-blue-100 shadow-sm border border-blue-200/60 dark:border-blue-700/50' 
-                          : 'hover:bg-gray-100/60 dark:hover:bg-[#2d2e30] text-gray-600 dark:text-gray-400 border border-transparent'}
-                      `}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                         <span className={`text-sm font-medium truncate flex-1 ${activePost && activePost.id === post.id ? 'font-semibold' : ''}`}>
-                            {post.title}
-                         </span>
-                         <button
-                           onClick={(e) => handleDeleteClick(post, e)}
-                           className={`
-                             opacity-0 group-hover:opacity-100 transition-opacity duration-200 ml-2
-                             p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30
-                             text-gray-400 hover:text-red-600 dark:hover:text-red-400
-                             ${activePost && activePost.id === post.id ? 'opacity-100' : ''}
-                           `}
-                           title="删除笔记"
-                         >
-                           <Trash2 size={14} />
-                         </button>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] opacity-70">
-                         <span>{post.date}</span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="px-4 py-8 text-center text-sm text-gray-400">
-                    未找到笔记
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* User Footer (Material Card style) */}
-          <div className="p-4 mt-auto relative" ref={userMenuRef}>
-             {/* Popup Menu */}
-             {showUserMenu && (
-               <div className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-[#2d2e30] rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 py-2 z-50 animate-in slide-in-from-bottom-2 fade-in duration-200">
-                 <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">我的工作空间</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">user@example.com</p>
-                 </div>
-                 
-                 <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors">
-                   <Settings size={16} /> 
-                   <span>设置</span>
-                 </button>
-                 <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors">
-                   <HelpCircle size={16} /> 
-                   <span>帮助与反馈</span>
-                 </button>
-                 <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
-                 <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors">
-                   <LogOut size={16} /> 
-                   <span>退出登录</span>
-                 </button>
-               </div>
-             )}
+          <MenuItem 
+            icon={Files} 
+            label="文档管理" 
+            isActive={false} 
+            isCollapsed={isCollapsed}
+            onClick={() => router.push('/docs')}
+          />
+          </div>
 
-             <div 
-               onClick={() => setShowUserMenu(!showUserMenu)}
-               className={`flex items-center gap-3 p-2 rounded-full transition-colors cursor-pointer ${showUserMenu ? 'bg-white dark:bg-[#2d2e30] shadow-sm' : 'hover:bg-white/60 dark:hover:bg-[#2d2e30]'}`}
-             >
-                {/* Avatar with Local Image */}
-                <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex-shrink-0 border-2 border-white dark:border-gray-600 shadow-md ring-1 ring-gray-100 dark:ring-gray-800">
-                   <img 
-                     src="/images/116590818.jpg" 
-                     alt="User Avatar" 
-                     className="w-full h-full object-cover"
-                   />
-                </div>
+          {/* 5. Notes List (File list for active category) */}
+          <div className={`
+            mt-6 mb-4 flex-1 flex flex-col min-h-0 pt-6 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+            ${isCollapsed 
+              ? 'opacity-0 pointer-events-none border-transparent' 
+              : 'opacity-100 border-t border-slate-100 dark:border-slate-800'}
+          `}>
+            {!isCollapsed && (
+              <>
+                <p className="px-4 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  {activeCategory === 'all' ? '所有笔记' : categories.find(c => c.id === activeCategory)?.name || '笔记列表'}
+                </p>
                 
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 px-1">
+                  {filteredPosts.length > 0 ? (
+                    filteredPosts.map(post => (
+                      <div 
+                        key={post.id}
+                        onClick={() => onPostClick(post)}
+                        className={`
+                          group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200
+                          ${activePost?.id === post.id && mode === 'doc'
+                            ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-text-active)] font-medium shadow-sm ring-1 ring-black/5 dark:ring-white/5' 
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'}
+                        `}
+                      >
+                        <FileText size={16} className={`shrink-0 ${activePost?.id === post.id && mode === 'doc' ? 'text-[var(--primary-indigo)]' : 'text-slate-400'}`} />
+                        <span className="text-sm truncate flex-1">
+                          {post.title}
+                        </span>
+                        <button
+                          onClick={(e) => handleDeleteClick(post, e)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 rounded transition-all"
+                          aria-label="删除笔记"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-8 text-center">
+                      <p className="text-xs text-slate-400 italic">暂无笔记</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* 6. Footer */}
+        <div className="p-3 border-t border-slate-100 dark:border-slate-800 relative" ref={userMenuRef}>
+          {showUserMenu && !isCollapsed && (
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1.5 z-50 animate-in slide-in-from-bottom-2 duration-200 backdrop-blur-md">
+              <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 mb-1">
+                <p className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">我的工作空间</p>
+                <p className="text-[11px] text-slate-500 truncate">user@example.com</p>
+              </div>
+              <button className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center gap-2.5 transition-colors">
+                <Settings size={14} /> <span className="font-medium">设置</span>
+              </button>
+              <button className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center gap-2.5 transition-colors">
+                <HelpCircle size={14} /> <span className="font-medium">帮助与反馈</span>
+              </button>
+              <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+              <button 
+                onClick={() => router.push('/login')}
+                className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2.5 transition-colors"
+              >
+                <LogOut size={14} /> <span className="font-medium">退出登录</span>
+              </button>
+            </div>
+          )}
+
+          <div 
+            onClick={() => !isCollapsed && setShowUserMenu(!showUserMenu)}
+            className={`
+              flex items-center gap-3 p-2 rounded-xl transition-all cursor-pointer
+              ${isCollapsed ? 'justify-center' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}
+              ${showUserMenu && !isCollapsed ? 'bg-slate-50 dark:bg-slate-800' : ''}
+            `}
+          >
+            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-slate-100 dark:ring-slate-800 group-hover:ring-indigo-100 dark:group-hover:ring-indigo-900/30 transition-all shadow-sm relative group">
+              <Image 
+                src="/images/116590818.jpg" 
+                alt="Avatar" 
+                width={64} 
+                height={64} 
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 image-high-quality"
+                priority
+              />
+            </div>
+            
+            {!isCollapsed && (
+              <>
                 <div className="flex-1 min-w-0">
-                   <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">我的工作空间</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">我的工作空间</p>
                 </div>
-                
                 <button 
                   onClick={(e) => { e.stopPropagation(); onDarkModeToggle(); }}
-                  className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-400 hover:text-[var(--primary-indigo)] transition-all hover:rotate-12 active:scale-90 shadow-sm border border-slate-100 dark:border-slate-800"
+                  aria-label={darkMode ? "切换为亮色模式" : "切换为深色模式"}
                 >
                   {darkMode ? <Sun size={16} /> : <Moon size={16} />}
                 </button>
-             </div>
+              </>
+            )}
           </div>
         </div>
       </aside>
-      
-      {/* 删除确认对话框 */}
+
       <DeleteConfirmDialog
         isOpen={deleteDialogOpen}
-        onClose={handleDeleteCancel}
+        onClose={() => setDeleteDialogOpen(false)}
         onConfirm={handleDeleteConfirm}
         title={postToDelete?.title || ''}
       />

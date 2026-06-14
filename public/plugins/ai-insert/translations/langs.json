@@ -1,0 +1,10 @@
+[
+  {
+    "langs": ["zh-CN"],
+    "pathname": "zh-CN.json"
+  },
+  {
+    "langs": ["en"],
+    "pathname": "en.json"
+  }
+]

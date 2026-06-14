@@ -47,6 +47,11 @@ export interface PromptItem {
   category: string
   tags: string[]
   favorite?: boolean
+  description?: string
+  icon?: string
+  scenarios?: string[]
+  parameters?: { name: string; description: string }[]
+  examples?: { input: string; output: string }[]
   createdAt: string
   updatedAt: string
   filePath?: string

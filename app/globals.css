@@ -2,45 +2,139 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --sidebar-bg: #FFFFFF;
+    --sidebar-hover: #F1F5F9;
+    --sidebar-active: #EEF2FF;
+    --sidebar-text: #64748B;
+    --sidebar-text-active: #4F46E5;
+    --sidebar-icon: #94A3B8;
+    --sidebar-icon-active: #4F46E5;
+    --primary-indigo: #4F46E5;
+    --content-bg: #F8FAFC;
+  }
+
+  .dark {
+    --sidebar-bg: #0F172A;
+    --sidebar-hover: #1E293B;
+    --sidebar-active: #1E293B;
+    --sidebar-text: #94A3B8;
+    --sidebar-text-active: #818CF8;
+    --sidebar-icon: #64748B;
+    --sidebar-icon-active: #818CF8;
+    --primary-indigo: #818CF8;
+    --content-bg: #020617;
+  }
+
+  body {
+    background-color: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Image Quality Enhancements */
+.image-high-quality {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  filter: contrast(1.02) saturate(1.05);
+}
+
+/* Typography Enhancements */
+.note-title-hierarchy h1 {
+  @apply text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-8 border-b pb-4;
+}
+
+.note-title-hierarchy h2 {
+  @apply text-2xl font-bold text-gray-800 dark:text-gray-100 mt-12 mb-6 flex items-center gap-2;
+}
+
+.note-title-hierarchy h2::before {
+  content: "";
+  @apply w-1.5 h-6 bg-[var(--primary-indigo)] rounded-full;
+}
+
+.note-title-hierarchy p {
+  @apply text-lg leading-relaxed text-gray-600 dark:text-gray-400 mb-6;
+}
+
+/* Smooth transitions for all themeable elements */
+.transition-theme {
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Material Ripple Effect */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: "";
+  display: block;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, #000 10%, transparent 10.01%);
+  background-repeat: no-repeat;
+  background-position: 50%;
+  transform: scale(10, 10);
+  opacity: 0;
+  transition: transform .5s, opacity 1s;
+}
+
+.ripple:active::after {
+  transform: scale(0, 0);
+  opacity: .3;
+  transition: 0s;
+}
+
+.dark .ripple::after {
+  background-image: radial-gradient(circle, #fff 10%, transparent 10.01%);
+}
+
 /* 自定义滚动条样式 */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgb(156 163 175) rgb(243 244 246);
+  scrollbar-color: #CBD5E1 transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgb(243 244 246);
-  border-radius: 3px;
+  background: transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(156 163 175);
-  border-radius: 3px;
+  background: #CBD5E1;
+  border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(107 114 128);
+  background: #94A3B8;
 }
 
 /* 深色模式滚动条 */
 .dark .custom-scrollbar {
-  scrollbar-color: rgb(75 85 99) rgb(31 41 55);
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgb(31 41 55);
+  scrollbar-color: #334155 transparent;
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(75 85 99);
+  background: #334155;
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(107 114 128);
+  background: #475569;
 }
 
 
@@ -86,7 +180,7 @@
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -94,8 +188,55 @@
   }
 }
 
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 .animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-gemini-fade-in {
+  animation: fadeIn 0.8s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.animate-slide-left {
+  animation: slideInLeft 0.3s ease-out forwards;
+}
+
+.animate-slide-right {
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* 平滑滚动 */

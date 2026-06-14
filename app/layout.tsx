@@ -3,6 +3,8 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 
+import { SidebarProvider } from '@/context/SidebarContext'
+
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
@@ -17,7 +19,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" className="scroll-smooth">
-      <body className={`${inter.className} antialiased`}>{children}</body>
+      <body className={`${inter.className} antialiased`}>
+        <SidebarProvider>
+          {children}
+        </SidebarProvider>
+      </body>
     </html>
   )
 }

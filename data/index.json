@@ -1,16 +1,17 @@
 {
   "knowledge": [
     {
-      "id": "welcome-to-learnhub",
-      "title": "欢迎使用 LearnHub",
+      "id": "nextjs-development-notes",
+      "title": "Next.js 开发笔记",
       "category": "技术",
       "tags": [
-        "入门",
-        "教程"
+        "Next.js",
+        "React",
+        "Web开发"
       ],
-      "createdAt": "2025-12-17T01:35:03.405Z",
-      "updatedAt": "2025-12-17T01:35:03.405Z",
-      "filePath": "D:\\react_code\\LearnHub\\data\\knowledge\\welcome-to-learnhub.md"
+      "createdAt": "2026-01-01T09:27:54.095Z",
+      "updatedAt": "2026-01-01T09:27:54.095Z",
+      "filePath": "D:\\react_code\\LearnHub\\data\\knowledge\\nextjs-development-notes.md"
     },
     {
       "id": "typescript-learning-notes",
@@ -21,22 +22,35 @@
         "JavaScript",
         "类型系统"
       ],
-      "createdAt": "2025-12-17T01:35:03.402Z",
-      "updatedAt": "2025-12-17T01:35:03.402Z",
+      "createdAt": "2026-01-01T09:27:54.095Z",
+      "updatedAt": "2026-01-01T09:27:54.095Z",
       "filePath": "D:\\react_code\\LearnHub\\data\\knowledge\\typescript-learning-notes.md"
     },
     {
-      "id": "nextjs-development-notes",
-      "title": "Next.js 开发笔记",
+      "id": "welcome-to-learnhub",
+      "title": "欢迎使用 LearnHub",
       "category": "技术",
       "tags": [
-        "Next.js",
-        "React",
-        "Web开发"
+        "入门",
+        "教程"
       ],
-      "createdAt": "2025-12-17T01:35:03.400Z",
-      "updatedAt": "2025-12-17T01:35:03.400Z",
-      "filePath": "D:\\react_code\\LearnHub\\data\\knowledge\\nextjs-development-notes.md"
+      "createdAt": "2026-01-01T09:27:54.095Z",
+      "updatedAt": "2026-01-01T09:27:54.095Z",
+      "filePath": "D:\\react_code\\LearnHub\\data\\knowledge\\welcome-to-learnhub.md"
+    },
+    {
+      "id": "1766315000000",
+      "title": "OnlyOffice AI 插件：用“广播通道”穿透 API 封锁",
+      "category": "技术实战",
+      "tags": [
+        "OnlyOffice",
+        "Web通信",
+        "BroadcastChannel",
+        "黑科技"
+      ],
+      "createdAt": "2025-12-21T11:00:00.000Z",
+      "updatedAt": "2025-12-21T11:00:00.000Z",
+      "filePath": "D:\\react_code\\LearnHub\\data\\knowledge\\2025\\12\\1766315000000-OnlyOffice-AI-插入技术攻坚记.md"
     },
     {
       "id": "1765881065563",
@@ -96,40 +110,70 @@
   "prompts": [
     {
       "id": "1765875367047",
-      "title": "生活风",
-      "category": "general",
-      "tags": [],
+      "title": "午后茶歇 · 温柔辅导",
+      "category": "Roleplay",
+      "tags": [
+        "温柔",
+        "治愈",
+        "拟人化",
+        "情感"
+      ],
       "favorite": false,
       "createdAt": "2025-12-16T08:56:07.086Z",
-      "updatedAt": "2025-12-16T08:56:07.086Z",
+      "updatedAt": "2025-12-20T08:56:07.086Z",
       "filePath": "D:\\react_code\\LearnHub\\data\\prompts\\2025\\12\\1765875367047-生活风.md"
     },
     {
       "id": "1765875283117",
-      "title": "修炼风",
-      "category": "general",
-      "tags": [],
+      "title": "赛博邪修 · 黑话秘籍",
+      "category": "Roleplay",
+      "tags": [
+        "中二",
+        "修仙",
+        "黑话",
+        "趣味"
+      ],
       "favorite": true,
       "createdAt": "2025-12-16T08:54:43.132Z",
-      "updatedAt": "2025-12-17T01:35:03.385Z",
+      "updatedAt": "2025-12-20T01:35:03.385Z",
       "filePath": "D:\\react_code\\LearnHub\\data\\prompts\\2025\\12\\1765875283117-修炼风.md"
+    },
+    {
+      "id": "1765875283117",
+      "title": "赛博邪修 · 黑话秘籍",
+      "category": "Roleplay",
+      "tags": [
+        "中二",
+        "修仙",
+        "黑话",
+        "趣味"
+      ],
+      "favorite": true,
+      "createdAt": "2025-12-16T08:54:43.132Z",
+      "updatedAt": "2026-01-01T09:27:54.093Z",
+      "filePath": "D:\\react_code\\LearnHub\\data\\prompts\\2025\\12\\1765875283117-赛博邪修---黑话秘籍.md"
     }
   ],
   "categories": {
     "技术": 4,
     "学习": 1,
+    "技术实战": 1,
     "科技": 1,
     "赛博修仙": 1
   },
   "tags": {
-    "入门": 1,
-    "教程": 2,
-    "TypeScript": 1,
-    "JavaScript": 1,
-    "类型系统": 1,
     "Next.js": 1,
     "React": 1,
     "Web开发": 2,
+    "TypeScript": 1,
+    "JavaScript": 1,
+    "类型系统": 1,
+    "入门": 1,
+    "教程": 2,
+    "OnlyOffice": 1,
+    "Web通信": 1,
+    "BroadcastChannel": 1,
+    "黑科技": 1,
     "网络": 4,
     "云服务器": 3,
     "vpn": 2,
@@ -137,5 +181,5 @@
     "邪修": 1,
     "修炼": 1
   },
-  "lastUpdated": "2025-12-17T01:35:03.426Z"
+  "lastUpdated": "2026-01-01T09:27:54.105Z"
 }

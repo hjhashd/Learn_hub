@@ -2,12 +2,15 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { 
-  Menu, List, ChevronRight, Sparkles, FolderHeart, Coffee, Sprout, ArrowLeft, PanelLeftClose, PanelLeft
+  Menu, List, ChevronRight, Sparkles, FolderHeart, Coffee, Sprout, ArrowLeft, PanelLeftClose, PanelLeft,
+  Plus, Wand2, ChevronDown, Mic, Pencil, GraduationCap, Zap, Code, Files, MessageSquare
 } from 'lucide-react';
 import TableOfContents from '@/components/TableOfContents';
 import PromptUniverse from '@/components/PromptUniverse';
-import Mascot from '@/components/Mascot';
+import AIChat from '@/components/AIChat';
+import { useSidebar } from '@/context/SidebarContext';
 import { HeadingItem, generateHeadingToc } from '@/lib/utils';
 import { Post } from '@/types/knowledge';
 
@@ -15,8 +18,6 @@ const MarkdownViewerDynamic = dynamic(() => import('@/components/MarkdownViewer'
 
 interface MainContentWithTocProps {
   darkMode: boolean;
-  isSidebarOpen: boolean;
-  onToggleSidebar: () => void;
   
   activePost: Post | null;
   posts: Post[]; // For resolving internal links/titles
@@ -25,41 +26,37 @@ interface MainContentWithTocProps {
   lastActivePost: Post | null;
   onReturnToLastPost: () => void;
   
-  onModeChange?: (mode: 'doc' | 'universe') => void;
+  mode: 'doc' | 'universe';
+  onModeChange: (mode: 'doc' | 'universe') => void;
 }
 
 export default function MainContentWithToc({
   darkMode,
-  isSidebarOpen,
-  onToggleSidebar,
   activePost,
   posts,
   onInternalLinkOpen,
   lastActivePost,
   onReturnToLastPost,
+  mode,
   onModeChange
 }: MainContentWithTocProps) {
-  const [mode, setMode] = useState<'doc' | 'universe'>('doc');
+  const { isCollapsed, setIsCollapsed, isMobile, setIsDrawerOpen } = useSidebar();
+  const router = useRouter();
   const [showToc, setShowToc] = useState(true);
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const [domToc, setDomToc] = useState<HeadingItem[]>([]);
   const contentContainerRef = useRef<HTMLDivElement>(null);
-
-  // Sync mode change
-  useEffect(() => {
-    onModeChange?.(mode);
-  }, [mode, onModeChange]);
-
-  // When activePost changes, switch back to doc mode if not already
-  useEffect(() => {
-    if (activePost) {
-      setMode('doc');
-    }
-  }, [activePost]);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [showPromptsUniverse, setShowPromptsUniverse] = useState(false);
 
   const handlePromptClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    setMode('universe');
+    if (mode === 'universe') {
+      setShowPromptsUniverse(true);
+    } else {
+      onModeChange('universe');
+    }
   };
 
   // --- TOC Logic Copied from page.tsx ---
@@ -152,36 +149,52 @@ export default function MainContentWithToc({
     setActiveHeadingId(id);
   }, [scrollToHeading]);
 
+  const handleSendMessage = () => {
+    if (!inputValue.trim()) return;
+    const newMessages = [...chatMessages, { role: 'user' as const, content: inputValue }];
+    setChatMessages(newMessages);
+    setInputValue('');
+    
+    // Mock response
+    setTimeout(() => {
+      setChatMessages([...newMessages, { role: 'assistant' as const, content: '这是一条模拟回复。我正在学习如何更好地协助您管理知识库。' }]);
+    }, 1000);
+  };
+
   return (
-    <main className={`flex-1 flex min-w-0 h-full relative rounded-tl-3xl shadow-sm overflow-hidden border-l transition-colors duration-300
-      ${darkMode ? 'bg-[#131314] border-none' : 'bg-white border-gray-100'}
+    <main className={`flex-1 flex min-w-0 h-full relative rounded-tl-3xl shadow-sm overflow-hidden border-l transition-theme bg-[var(--content-bg)]
+      ${darkMode ? 'border-none' : 'border-gray-100'}
     `}>
       
       {/* Center Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+      <div className="flex-1 flex flex-col min-w-0 h-full relative bg-[var(--content-bg)] transition-theme">
         
-        {/* Header */}
-        <header className={`h-16 flex items-center justify-between px-8 shrink-0 sticky top-0 z-10 backdrop-blur-md border-b transition-colors
-          ${darkMode ? 'bg-[#131314]/80 border-white/5' : 'bg-white/80 border-transparent'}
-        `}>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={onToggleSidebar}
-              className={`p-2 -ml-2 rounded-full transition-colors ${darkMode ? 'hover:bg-[#2d2e30] text-slate-400' : 'hover:bg-gray-100 text-slate-500'}`}
-              title={isSidebarOpen ? "收起侧边栏" : "展开侧边栏"}
-            >
-              {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeft size={20} />}
-            </button>
-            
-            {/* Breadcrumbs */}
-            <div className={`flex items-center gap-2 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              <span className={`cursor-pointer transition-colors ${darkMode ? 'hover:text-slate-200' : 'hover:text-slate-900'}`} onClick={() => setMode('doc')}>
-                文库
-              </span>
-              <ChevronRight size={14} className="text-slate-300" />
-              <span className={`font-medium ${darkMode ? 'text-slate-200' : 'text-slate-900'}`}>
-                {mode === 'universe' ? '提示词宇宙' : (activePost ? activePost.category : '...')}
-              </span>
+        {/* 1. Content Header */}
+        <header className={`h-16 flex items-center justify-between px-4 sm:px-8 border-b transition-theme shrink-0 z-30 ${darkMode ? 'bg-[#131314]/80 border-white/5' : 'bg-white/80 border-black/5'} backdrop-blur-xl sticky top-0`}>
+          <div className="flex items-center gap-4 overflow-hidden">
+            {isMobile && (
+              <button 
+                onClick={() => setIsDrawerOpen(true)}
+                className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-[var(--sidebar-icon)]"
+              >
+                <Menu size={20} />
+              </button>
+            )}
+            <div className="flex items-center gap-2 text-sm font-medium text-[var(--sidebar-text)] opacity-60 truncate">
+              <span className="shrink-0">LearnHub</span>
+              <ChevronRight size={14} className="shrink-0" />
+              <div className={`flex items-center gap-2 px-2 py-1 rounded-md transition-colors ${mode === 'universe' ? 'bg-[var(--primary-indigo)]/10 text-[var(--primary-indigo)] font-bold' : ''}`}>
+                {mode === 'universe' && <MessageSquare size={14} />}
+                <span className="truncate">
+                  {mode === 'universe' ? 'AI 对话' : (activePost ? activePost.category : '知识库')}
+                </span>
+              </div>
+              {mode === 'doc' && activePost && (
+                <>
+                  <ChevronRight size={14} className="shrink-0" />
+                  <span className="truncate text-[var(--sidebar-text-active)] font-semibold">{activePost.title}</span>
+                </>
+              )}
             </div>
           </div>
           
@@ -204,15 +217,13 @@ export default function MainContentWithToc({
             {/* Prompt Universe Button */}
             <button 
               onClick={handlePromptClick}
-              className={`group flex items-center gap-2 transition-opacity ${mode === 'universe' ? 'opacity-50 cursor-default' : 'hover:opacity-80'}`}
+              className={`group flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${mode === 'universe' ? 'bg-[var(--primary-indigo)] text-white shadow-md' : 'hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400'}`}
               disabled={mode === 'universe'}
             >
-              <img
-                src="/api/images/prompt-mascot.png"
-                alt="Prompts"
-                className={`h-8 w-8 rounded-full ring-1 shadow-sm object-cover transition-transform ${mode === 'doc' ? 'group-hover:scale-105' : ''} ${darkMode ? 'ring-slate-700' : 'ring-slate-200'}`}
-              />
-              <span className={`hidden sm:inline text-xs ${darkMode ? 'text-slate-400 group-hover:text-slate-200' : 'text-slate-500 group-hover:text-slate-700'}`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${mode === 'universe' ? 'bg-white/20' : 'bg-[var(--primary-indigo)]/10 text-[var(--primary-indigo)]'}`}>
+                <Sparkles size={18} />
+              </div>
+              <span className="hidden sm:inline text-sm font-semibold">
                 提示词宇宙
               </span>
             </button>
@@ -243,37 +254,35 @@ export default function MainContentWithToc({
           ref={contentContainerRef}
           className="flex-1 overflow-y-auto custom-scrollbar scroll-smooth relative"
         >
-          {/* Doc View - Using conditional rendering for performance instead of just opacity */}
-          <div className={`transition-opacity duration-300 ease-in-out ${mode === 'doc' ? 'opacity-100 block' : 'opacity-0 hidden'}`}>
-             <div className="max-w-4xl mx-auto p-8 lg:p-12 pb-32 min-h-full">
-              {activePost ? (
-                <div className="space-y-8 animate-fade-in">
+          {/* Doc View */}
+          {mode === 'doc' && activePost && (
+            <div className="transition-opacity duration-300 ease-in-out opacity-100 animate-fade-in">
+               <div className="max-w-4xl mx-auto p-8 lg:p-12 pb-32 min-h-full">
+                <div className="space-y-8">
                   {/* Title & Meta */}
-                  <div className={`space-y-4 rounded-xl p-8 border ${darkMode ? 'bg-gradient-to-r from-slate-800/50 to-slate-900/50 border-slate-700' : 'bg-gradient-to-r from-primary-50 to-accent-50 border-transparent'}`}>
-                    <div className="flex items-center justify-between">
-                      <h1 className={`text-3xl font-bold leading-tight ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
-                        {activePost.title}
-                      </h1>
-                      <a href={`/edit?id=${activePost.id}`} className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-full transition-colors">
-                        <Sparkles className="h-4 w-4" />
-                        编辑
-                      </a>
-                    </div>
-                    <div className={`flex items-center gap-4 flex-wrap text-sm ${darkMode ? 'text-slate-400' : 'text-gray-600'}`}>
-                      <div className="flex items-center">
-                        <FolderHeart className="h-4 w-4 mr-1" />
-                        <span>{activePost.category}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Coffee className="h-4 w-4 mr-1" />
+                  <div className={`space-y-6 rounded-3xl p-10 border transition-all duration-500 shadow-sm ${darkMode ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-gray-50 border-gray-100 hover:bg-white hover:shadow-xl hover:border-transparent'}`}>
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-center gap-3 text-[var(--primary-indigo)] font-bold tracking-widest text-xs uppercase">
+                        <span className="px-2 py-1 rounded-md bg-[var(--primary-indigo)]/10">{activePost.category}</span>
+                        <span className="opacity-30">•</span>
                         <span>{activePost.date}</span>
                       </div>
+                      <div className="flex items-center justify-between gap-6">
+                        <h1 className={`text-4xl md:text-5xl font-black leading-tight tracking-tight ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+                          {activePost.title}
+                        </h1>
+                        <a href={`/edit?id=${activePost.id}`} className="hidden md:inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--primary-indigo)] hover:bg-indigo-600 text-white text-sm font-bold rounded-2xl transition-all shadow-lg shadow-indigo-200/50 dark:shadow-none hover:scale-105 active:scale-95 shrink-0">
+                          <Sparkles className="h-4 w-4" />
+                          优化建议
+                        </a>
+                      </div>
                     </div>
+                    
                     {activePost.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 pt-2">
                         {activePost.tags.map(tag => (
-                          <span key={tag} className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${darkMode ? 'bg-indigo-900/30 text-indigo-400' : 'bg-indigo-100 text-indigo-700'}`}>
-                            <Sprout className="h-3 w-3 mr-1" />
+                          <span key={tag} className={`inline-flex items-center px-4 py-1.5 rounded-xl text-xs font-bold transition-colors ${darkMode ? 'bg-indigo-900/30 text-indigo-400 hover:bg-indigo-900/50' : 'bg-white text-indigo-700 border border-indigo-100 hover:bg-indigo-50'}`}>
+                            <Sprout className="h-3.5 w-3.5 mr-1.5" />
                             {tag}
                           </span>
                         ))}
@@ -282,7 +291,7 @@ export default function MainContentWithToc({
                   </div>
 
                   {/* Markdown Content */}
-                  <div className="prose prose-lg dark:prose-invert max-w-none prose-headings:scroll-mt-24 prose-headings:font-bold prose-p:text-slate-600 dark:prose-p:text-slate-300 prose-a:text-blue-600 dark:prose-a:text-blue-400">
+                  <div className="prose prose-lg dark:prose-invert max-w-none prose-headings:scroll-mt-24 prose-headings:font-bold prose-p:text-slate-600 dark:prose-p:text-slate-300 prose-a:text-blue-600 dark:prose-a:text-blue-400 note-title-hierarchy">
                     <MarkdownViewerDynamic 
                       content={activePost.content} 
                       darkMode={darkMode} 
@@ -291,29 +300,37 @@ export default function MainContentWithToc({
                     />
                   </div>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400">
-                  <div className="text-6xl mb-6 opacity-20">📝</div>
-                  <h3 className={`text-xl font-medium mb-2 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>还没有选择文章</h3>
-                  <p className="text-sm">请从左侧列表选择一篇笔记开始阅读</p>
-                </div>
-              )}
-             </div>
-          </div>
-
-          {/* Universe View - Using conditional rendering for performance */}
-          {mode === 'universe' && (
-            <div className="transition-opacity duration-300 ease-in-out animate-fade-in">
-               <div className="p-8 lg:p-12 min-h-full">
-                  <PromptUniverse darkMode={darkMode} />
                </div>
             </div>
           )}
+
+          {/* Universe View */}
+          {mode === 'universe' && (
+            <div className="transition-opacity duration-300 ease-in-out opacity-100 animate-fade-in h-full flex flex-col">
+               {showPromptsUniverse ? (
+                 <div className="flex-1 overflow-y-auto custom-scrollbar">
+                   <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 min-h-full">
+                     <PromptUniverse darkMode={darkMode} onBackToChat={() => setShowPromptsUniverse(false)} />
+                   </div>
+                 </div>
+               ) : (
+                 <div className="flex-1 h-full overflow-hidden">
+                   <AIChat darkMode={darkMode} onSwitchToPrompts={() => setShowPromptsUniverse(true)} />
+                 </div>
+               )}
+            </div>
+          )}
           
+          {/* Default/Empty State (Optional, but helps prevent flashes) */}
+          {mode === 'doc' && !activePost && (
+            <div className="flex items-center justify-center h-full text-[var(--sidebar-text)] opacity-40">
+              请在侧边栏选择一篇笔记
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Right Sidebar Area (TOC or Mascot Placeholder) */}
+      {/* Right Sidebar Area (TOC or AI Sidebar) */}
       <div className="flex flex-col h-full shrink-0">
         {mode === 'doc' && (
            <TableOfContents
@@ -326,18 +343,6 @@ export default function MainContentWithToc({
            />
         )}
       </div>
-
-      {/* Floating Mascot (Only Visible in Universe Mode) */}
-      {mode === 'universe' && (
-        <div className="absolute bottom-6 right-6 z-30 animate-fade-in">
-          <Mascot 
-             mode={mode} 
-             darkMode={darkMode} 
-             className="transform scale-75 origin-bottom-right sm:scale-100"
-          />
-        </div>
-      )}
-
     </main>
   );
 }

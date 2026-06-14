@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 const AVATAR_URL = '/api/images/prompt-mascot.png';
 
@@ -72,10 +73,12 @@ export default function Mascot({ darkMode, mode, className = '' }: MascotProps) 
         }}
       >
         <div className="absolute inset-0 bg-gradient-to-b from-blue-200 to-pink-200 rounded-full opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-300"></div>
-        <img 
+        <Image 
           src={AVATAR_URL} 
           alt="Mascot" 
-          className="w-40 h-40 object-cover rounded-xl drop-shadow-xl hover:scale-105 transition-transform duration-300"
+          width={160}
+          height={160}
+          className="w-40 h-40 object-cover rounded-xl drop-shadow-xl hover:scale-105 transition-transform duration-300 image-high-quality"
         />
         
         {/* Status Indicator */}

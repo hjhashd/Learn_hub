@@ -1,0 +1,19 @@
+{
+    "name": "AI Insert",
+    "guid": "asc.{6B7A6A6A-7A6A-4A6A-8A6A-7A6A6A6A6A6A}",
+    "version": "1.0.0",
+    "variations": [
+        {
+            "description": "AI Insert Assistant",
+            "url": "index.html",
+            "isSystem": true,
+            "isVisual": false,
+            "isModal": false,
+            "isInsideMode": true,
+            "initDataType": "text",
+            "initData": "",
+            "buttons": [],
+            "editorType": ["word"]
+        }
+    ]
+}
